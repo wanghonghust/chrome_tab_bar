@@ -1,5 +1,71 @@
 # chrome_tab_bar
 
+**English** | [中文](#中文)
+
+A Chrome-style browser tab bar (pure UI library). **Contains only the tab strip itself — page content is up to you**: drive tab add/close/activate/update through `TabBarController`, and render whatever content you like for the active tab.
+
+A 1:1 Flutter port of the web version (`tab.css` + `tab.js`).
+
+## Features
+
+- Chrome look: tab height 34 / strip height 38, top corner radius 8px, flexible equal-width tabs (72–240px)
+- Overflow dropdown: when tabs no longer fit, a square dropdown button appears on the left listing the hidden tabs (activate / close from the menu); the active tab always stays in the visible window
+- Active tab has 8px concave-flare "ears" on both sides, blending into the toolbar below; the transparent quarters reveal the real background of neighboring tabs
+- Interactions: click to switch, × / middle-click to close, closing the active tab activates the right neighbor (or left if none), closing the last tab auto-creates a "New Tab"
+- Keyboard: roving focus + ←/→ to move (including hidden tabs, the visible window auto-pans) + Enter/Space to activate
+- Animations: hover / close-button exponential ease-out fades (~150ms)
+- Light & dark themes: `TabBarStyle.light` / `TabBarStyle.dark`; defaults to `Theme.brightness`
+- Zero third-party dependencies
+
+## Usage
+
+```dart
+import 'package:chrome_tab_bar/chrome_tab_bar.dart';
+
+final controller = TabBarController(
+  initialTabs: const [TabData(title: 'Docs', url: 'flutter.dev')],
+);
+
+// Read / operate
+controller.tabs;            // List<TabData>
+controller.active();        // active id
+controller.add(const TabData(title: 'New Tab'));
+controller.close(id);
+controller.activate(id);
+controller.update(id, title: 'New title', url: 'example.com');
+
+// Listen for changes (activate / add / close) and render your own content
+controller.onChange = (event) => setState(() { /* your content */ });
+
+// Put up the strip (height 38, fills the available width)
+ChromeTabBar(controller: controller);
+```
+
+The content area is entirely yours — `ChromeTabBar` renders no tab content.
+
+Integration note: the active tab and the toolbar below it share the same color and are meant to visually connect. Give your toolbar an opaque background and overlap it slightly onto the bottom edge of the strip (see `example/lib/main.dart`, which uses `Transform.translate(0, -1)` to hide a hairline seam at fractional DPI scales).
+
+## Example
+
+The `example/` folder is a complete demo app (tab strip + custom omnibox toolbar + custom content area, via path dependency):
+
+```
+cd example
+flutter run -d windows
+```
+
+## Tests
+
+```
+flutter test
+```
+
+---
+
+# 中文
+
+[English](#english) | **中文**
+
 Chrome 风格浏览器标签栏组件（纯 UI 库）。**只包含标签条本体，页面内容由使用方自定义**：通过 `TabBarController` 驱动标签增删改查，自行渲染激活标签对应的内容。
 
 与 `e:\Web\tab` 下的 web 版（`tab.css` + `tab.js`）一比一复刻。
