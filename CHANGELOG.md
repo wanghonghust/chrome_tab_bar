@@ -1,3 +1,8 @@
-## 0.0.1
+## 0.1.0
 
-* TODO: Describe initial release.
+* Initial release.
+* Chrome 风格标签条：tab 高 34 / 条高 38，宽 72–240px 弹性等分，激活 tab 8px 耳角与工具栏同色连通。
+* 溢出下拉：标签放不下时左侧出现下拉按钮，展开剩余标签菜单（可激活 / 关闭）；激活项始终保持在可见窗口内。
+* 交互：单击切换、× / 中键关闭、关闭激活 tab 自动接右邻、最后一个关闭自动补"新标签页"。
+* 键盘：roving focus + ←/→ 移动 + Enter/Space 激活，Esc / 鼠标点击收起焦点环。
+* 明暗主题（`TabBarStyle.light` / `dark`），零第三方依赖。

@@ -1,10 +1,10 @@
-/*! chrome_tab_bar 演示 app — 与 ../../index.html（web 版）一比一复刻
- * 浏览器卡片 = 标签条(chrome_tab_bar) + 工具栏(omnibox，自定义) + 内容区(当前标签页，自定义)
+/*! browser_tab_bar 演示 app — 与 ../../index.html（web 版）一比一复刻
+ * 浏览器卡片 = 标签条(browser_tab_bar) + 工具栏(omnibox，自定义) + 内容区(当前标签页，自定义)
  * 演示重点：内容与工具栏全部由使用方渲染，库只提供标签条。
  */
 import 'package:flutter/material.dart';
 
-import 'package:chrome_tab_bar/chrome_tab_bar.dart';
+import 'package:browser_tab_bar/browser_tab_bar.dart';
 
 void main() {
   runApp(const TabDemoApp());

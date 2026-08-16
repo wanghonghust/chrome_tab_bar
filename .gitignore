@@ -18,5 +18,5 @@ build/
 # 自检产物
 coverage/
 
-# 库包不锁版本（example 的 lock 保留）
-pubspec.lock
+# 库包不锁版本（锚定根目录；example 的 lock 保留）
+/pubspec.lock

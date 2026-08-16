@@ -1,5 +1,5 @@
-name: chrome_tab_bar_example
-description: "chrome_tab_bar 演示 app：标签条 + 自定义工具栏与内容区。"
+name: browser_tab_bar_example
+description: "browser_tab_bar 演示 app：标签条 + 自定义工具栏与内容区。"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -32,7 +32,7 @@ dependencies:
     sdk: flutter
 
   # 标签栏组件库（上级目录即本包，发布后可换 pub 依赖）
-  chrome_tab_bar:
+  browser_tab_bar:
     path: ../
 
   # The following adds the Cupertino Icons font to your application.

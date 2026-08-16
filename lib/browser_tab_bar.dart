@@ -281,7 +281,7 @@ class ChromeTabBar extends StatefulWidget {
 
   /// 溢出下拉按钮的 Key（测试 / 使用方定位用）。
   /// 用 ValueKey 而非 GlobalKey：多条 ChromeTabBar 并存时不会产生重复 Key 冲突。
-  static const Key overflowButtonKey = ValueKey('chrome_tab_bar_overflow');
+  static const Key overflowButtonKey = ValueKey('browser_tab_bar_overflow');
 
   final TabBarController controller;
 

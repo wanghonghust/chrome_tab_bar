@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:chrome_tab_bar/chrome_tab_bar.dart';
+import 'package:browser_tab_bar/browser_tab_bar.dart';
 
 void main() {
   group('TabBarController 逻辑（对应 tab.js 行为）', () {

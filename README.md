@@ -1,4 +1,4 @@
-# chrome_tab_bar
+# browser_tab_bar
 
 **English** | [中文](#中文)
 
@@ -26,7 +26,7 @@ A Chrome-style browser tab bar (pure UI library). **Contains only the tab strip 
 ## Usage
 
 ```dart
-import 'package:chrome_tab_bar/chrome_tab_bar.dart';
+import 'package:browser_tab_bar/browser_tab_bar.dart';
 
 final controller = TabBarController(
   initialTabs: const [TabData(title: 'Docs', url: 'flutter.dev')],
@@ -96,7 +96,7 @@ Chrome 风格浏览器标签栏组件（纯 UI 库）。**只包含标签条本�
 ## 用法
 
 ```dart
-import 'package:chrome_tab_bar/chrome_tab_bar.dart';
+import 'package:browser_tab_bar/browser_tab_bar.dart';
 
 final controller = TabBarController(
   initialTabs: const [TabData(title: '文档', url: 'flutter.dev')],
