@@ -1,4 +1,4 @@
-/*! ChromeTabBar — Chrome 风格浏览器标签组件（零第三方依赖）
+/*! BrowserTabBar — Chrome 风格浏览器标签组件（零第三方依赖）
  *
  * 库只包含标签条本体，页面内容由使用方自定义（监听 controller 自行渲染）。
  *   - 形态：tab 高 34 / 条高 38，顶部圆角 8px，宽 72–240px 弹性等分；
@@ -13,7 +13,7 @@
  *
  * 用法：
  *   final controller = TabBarController(initialTabs: [TabData(title: '示例', url: 'example.com')]);
- *   ChromeTabBar(
+ *   BrowserTabBar(
  *     controller: controller,
  *     onChange: (e) { ... },        // e.type: add / activate / close / update
  *   );
@@ -270,8 +270,8 @@ class TabBarController extends ChangeNotifier {
 // 组件（对应 web 版 DOM/CSS 结构）
 // ============================================================
 
-class ChromeTabBar extends StatefulWidget {
-  const ChromeTabBar({
+class BrowserTabBar extends StatefulWidget {
+  const BrowserTabBar({
     super.key,
     required this.controller,
     this.style,
@@ -280,7 +280,7 @@ class ChromeTabBar extends StatefulWidget {
   });
 
   /// 溢出下拉按钮的 Key（测试 / 使用方定位用）。
-  /// 用 ValueKey 而非 GlobalKey：多条 ChromeTabBar 并存时不会产生重复 Key 冲突。
+  /// 用 ValueKey 而非 GlobalKey：多条 BrowserTabBar 并存时不会产生重复 Key 冲突。
   static const Key overflowButtonKey = ValueKey('browser_tab_bar_overflow');
 
   final TabBarController controller;
@@ -294,7 +294,7 @@ class ChromeTabBar extends StatefulWidget {
   final String label;
 
   @override
-  State<ChromeTabBar> createState() => _ChromeTabBarState();
+  State<BrowserTabBar> createState() => _BrowserTabBarState();
 }
 
 /// 溢出时的可见窗口布局（画布只绘制 / 命中 [visibleStart, visibleStart + visibleCount)）
@@ -313,7 +313,7 @@ class _OverflowLayout {
       index >= visibleStart && index < visibleStart + visibleCount;
 }
 
-class _ChromeTabBarState extends State<ChromeTabBar> {
+class _BrowserTabBarState extends State<BrowserTabBar> {
   /// 溢出窗口起始索引（持久化：激活 / 键盘焦点平移窗口，而非每次从 0 起）
   int _windowStart = 0;
 
@@ -422,7 +422,7 @@ class _ChromeTabBarState extends State<ChromeTabBar> {
                   children: [
                     if (over)
                       _OverflowButton(
-                        key: ChromeTabBar.overflowButtonKey,
+                        key: BrowserTabBar.overflowButtonKey,
                         controller: c,
                         style: style,
                         hiddenTabs: [

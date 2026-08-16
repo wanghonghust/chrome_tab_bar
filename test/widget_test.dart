@@ -1,4 +1,4 @@
-// ChromeTabBar 组件测试：控制器逻辑 + 组件渲染冒烟测试
+// BrowserTabBar 组件测试：控制器逻辑 + 组件渲染冒烟测试
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -78,7 +78,7 @@ void main() {
     });
   });
 
-  group('ChromeTabBar 组件渲染', () {
+  group('BrowserTabBar 组件渲染', () {
     testWidgets('渲染不抛异常，且布局高度为 38', (tester) async {
       final c = TabBarController(
         initialTabs: const [TabData(title: 'MDN Web Docs'), TabData(title: 'GitHub')],
@@ -86,7 +86,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: ChromeTabBar(controller: c),
+            body: BrowserTabBar(controller: c),
           ),
         ),
       );
@@ -94,7 +94,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(
-        tester.getSize(find.byType(ChromeTabBar)).height,
+        tester.getSize(find.byType(BrowserTabBar)).height,
         TabBarStyle.stripTopPad + TabBarStyle.tabHeight,
       );
     });
@@ -108,7 +108,7 @@ void main() {
           home: Scaffold(
             body: SizedBox(
               width: 600,
-              child: ChromeTabBar(controller: c),
+              child: BrowserTabBar(controller: c),
             ),
           ),
         ),
@@ -132,7 +132,7 @@ void main() {
           home: Scaffold(
             body: SizedBox(
               width: 600,
-              child: ChromeTabBar(controller: c),
+              child: BrowserTabBar(controller: c),
             ),
           ),
         ),
@@ -192,7 +192,7 @@ void main() {
                 body: RepaintBoundary(
                   key: key,
                   child:
-                      SizedBox(width: 300, child: ChromeTabBar(controller: c)),
+                      SizedBox(width: 300, child: BrowserTabBar(controller: c)),
                 ),
               ),
             );
@@ -223,7 +223,7 @@ void main() {
     // 可见容量 220~/72 = 3；8 个标签 → 溢出，隐藏 5 个
     Widget wrap(TabBarController c) => MaterialApp(
           home: Scaffold(
-            body: SizedBox(width: 300, child: ChromeTabBar(controller: c)),
+            body: SizedBox(width: 300, child: BrowserTabBar(controller: c)),
           ),
         );
 
@@ -235,7 +235,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 8×72=576 > 256(无按钮内容宽) → 溢出
-      expect(find.byKey(ChromeTabBar.overflowButtonKey), findsOneWidget);
+      expect(find.byKey(BrowserTabBar.overflowButtonKey), findsOneWidget);
 
       // 关到 3 个：3×72=216 ≤ 256 → 放得下，按钮消失
       c.close('tab-8');
@@ -247,12 +247,12 @@ void main() {
       c.close('tab-5');
       await tester.pumpAndSettle();
       expect(c.count, 4); // 4×72=288 > 256 仍溢出 → 按钮保留
-      expect(find.byKey(ChromeTabBar.overflowButtonKey), findsOneWidget);
+      expect(find.byKey(BrowserTabBar.overflowButtonKey), findsOneWidget);
 
       c.close('tab-4');
       await tester.pumpAndSettle();
       expect(c.count, 3);
-      expect(find.byKey(ChromeTabBar.overflowButtonKey), findsNothing);
+      expect(find.byKey(BrowserTabBar.overflowButtonKey), findsNothing);
     });
 
     testWidgets('点开菜单显示剩余标签；激活隐藏 tab 后窗口跳转、菜单同步', (tester) async {
@@ -263,7 +263,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 初始窗口 [0,3)，隐藏 3..7；激活 tab-1（index 0）
-      await tester.tap(find.byKey(ChromeTabBar.overflowButtonKey));
+      await tester.tap(find.byKey(BrowserTabBar.overflowButtonKey));
       await tester.pumpAndSettle();
 
       // 标签条本体是 CustomPaint 绘制文本，find.text 只会命中菜单项
@@ -294,7 +294,7 @@ void main() {
       await tester.pumpWidget(wrap(c));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(ChromeTabBar.overflowButtonKey));
+      await tester.tap(find.byKey(BrowserTabBar.overflowButtonKey));
       await tester.pumpAndSettle();
 
       // 菜单第一项是"标签 3"（隐藏区首个），点它的关闭图标

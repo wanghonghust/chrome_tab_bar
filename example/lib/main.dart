@@ -143,7 +143,7 @@ class _DemoPageState extends State<DemoPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // ---- 标签条（组件本体）----
-                      ChromeTabBar(controller: _controller),
+                      BrowserTabBar(controller: _controller),
 
                       // ---- 工具栏：与激活 tab 同色连通 ----
                       // 上移 1px 压住标签条底边：工具栏不透明且画序在后，

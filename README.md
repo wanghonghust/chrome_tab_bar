@@ -44,10 +44,10 @@ controller.update(id, title: 'New title', url: 'example.com');
 controller.onChange = (event) => setState(() { /* your content */ });
 
 // Put up the strip (height 38, fills the available width)
-ChromeTabBar(controller: controller);
+BrowserTabBar(controller: controller);
 ```
 
-The content area is entirely yours — `ChromeTabBar` renders no tab content.
+The content area is entirely yours — `BrowserTabBar` renders no tab content.
 
 Integration note: the active tab and the toolbar below it share the same color and are meant to visually connect. Give your toolbar an opaque background and overlap it slightly onto the bottom edge of the strip (see `example/lib/main.dart`, which uses `Transform.translate(0, -1)` to hide a hairline seam at fractional DPI scales).
 
@@ -114,10 +114,10 @@ controller.update(id, title: '新标题', url: 'example.com');
 controller.onChange = (event) => setState(() { /* 自定义内容 */ });
 
 // 放入标签条（高度 38，自动占满宽度）
-ChromeTabBar(controller: controller);
+BrowserTabBar(controller: controller);
 ```
 
-内容区完全由你决定——`ChromeTabBar` 不渲染任何标签内容。
+内容区完全由你决定——`BrowserTabBar` 不渲染任何标签内容。
 
 集成提示：激活 tab 与下方工具栏是"同色连通"的，工具栏请使用不透明背景色，并叠在标签条底部边缘之上（演示见 `example/lib/main.dart`，其中用 `Transform.translate(0, -1)` 消除分数 DPI 下的拼缝灰线）。
 
