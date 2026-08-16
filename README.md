@@ -8,7 +8,7 @@ A Chrome-style browser tab bar (pure UI library). **Contains only the tab strip 
 
 | Light | Dark |
 | --- | --- |
-| ![Dark theme](snapshot/Snipaste_2026-08-16_12-06-10.png) | ![Light theme](snapshot/Snipaste_2026-08-16_12-06-50.png) |
+| ![Light theme](snapshot/Snipaste_2026-08-16_12-06-50.png) | ![Dark theme](snapshot/Snipaste_2026-08-16_12-06-10.png) |
 
 ![Overflow dropdown](snapshot/Snipaste_2026-08-16_12-07-02.png)
 
@@ -78,7 +78,7 @@ Chrome 风格浏览器标签栏组件（纯 UI 库）。**只包含标签条本�
 
 | 浅色 | 深色 |
 | --- | --- |
-| ![深色主题](snapshot/Snipaste_2026-08-16_12-06-10.png) | ![浅色主题](snapshot/Snipaste_2026-08-16_12-06-50.png) |
+| ![浅色主题](snapshot/Snipaste_2026-08-16_12-06-50.png) | ![深色主题](snapshot/Snipaste_2026-08-16_12-06-10.png) |
 
 ![溢出下拉](snapshot/Snipaste_2026-08-16_12-07-02.png)
 
