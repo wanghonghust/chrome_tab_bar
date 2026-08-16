@@ -1,3 +1,7 @@
+## 0.1.1
+
+* LICENSE 版权人更正（wanghonghust → wanghong）。
+
 ## 0.1.0
 
 * Initial release.
