@@ -671,6 +671,9 @@ class _TabsAreaState extends State<_TabsArea> with TickerProviderStateMixin {
               } else {
                 setState(() => _focusIndex = i);
                 c.activate(c.tabs[i].id!);
+                // 鼠标交互后收起焦点环（对应 :focus-visible 只在键盘导航时显示）；
+                // 需要键盘导航时按 Tab 重新聚焦
+                _focusNode.unfocus();
               }
             },
             child: RepaintBoundary(
@@ -720,6 +723,11 @@ class _TabsAreaState extends State<_TabsArea> with TickerProviderStateMixin {
     }
     if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.space) {
       c.activate(c.tabs[_focusIndex].id!);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape) {
+      // Esc 收起焦点环（保持激活态不变）
+      _focusNode.unfocus();
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
