@@ -1240,12 +1240,14 @@ class _TabStripPainter extends CustomPainter {
       canvas.drawPath(activePath(w), Paint()..color = style.pageBg);
     }
 
-    // ---- 4) 键盘焦点环（inset 1px，线宽 1.2，仅 :focus-visible）----
+    // ---- 4) 键盘焦点环（四周内缩 2px，线宽 1.2，仅 :focus-visible）----
+    // 底边必须抬离 tab 底缘：集成方工具栏会上叠标签条底缘 ~1px 消 DPI 拼缝
+    // （见 README 集成提示），贴底绘制会被遮住一截，导致底边看起来比顶边细
     if (index == focusIndex) {
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(0.5, 0.5, w - 1, _h - 1),
-          const Radius.circular(_r - 0.5),
+          Rect.fromLTWH(2, 2, w - 4, _h - 4),
+          const Radius.circular(_r - 2),
         ),
         Paint()
           ..color = style.focus
