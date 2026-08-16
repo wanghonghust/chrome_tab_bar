@@ -4,6 +4,14 @@
 
 A Chrome-style browser tab bar (pure UI library). **Contains only the tab strip itself — page content is up to you**: drive tab add/close/activate/update through `TabBarController`, and render whatever content you like for the active tab.
 
+## Screenshots
+
+| Light | Dark |
+| --- | --- |
+| ![Light theme](snapshot/Snipaste_2026-08-16_12-06-10.png) | ![Dark theme](snapshot/Snipaste_2026-08-16_12-06-50.png) |
+
+![Overflow dropdown](snapshot/Snipaste_2026-08-16_12-07-02.png)
+
 ## Features
 
 - Chrome look: tab height 34 / strip height 38, top corner radius 8px, flexible equal-width tabs (72–240px)
@@ -65,6 +73,14 @@ flutter test
 [English](#english) | **中文**
 
 Chrome 风格浏览器标签栏组件（纯 UI 库）。**只包含标签条本体，页面内容由使用方自定义**：通过 `TabBarController` 驱动标签增删改查，自行渲染激活标签对应的内容。
+
+## 截图
+
+| 浅色 | 深色 |
+| --- | --- |
+| ![浅色主题](snapshot/Snipaste_2026-08-16_12-06-10.png) | ![深色主题](snapshot/Snipaste_2026-08-16_12-06-50.png) |
+
+![溢出下拉](snapshot/Snipaste_2026-08-16_12-07-02.png)
 
 ## 特性
 
