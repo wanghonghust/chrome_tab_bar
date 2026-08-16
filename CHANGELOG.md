@@ -1,23 +1,23 @@
 ## 0.2.1
 
-* 激活 tab 轮廓描边 + 标签条底部分隔线：新增样式令牌 `TabBarStyle.activeBorder`（默认与分隔线同色；传 `null` 全部关闭）。
-* tab 本体 1px 描边（顶边 + 两侧 + 耳角），不含底边——保持与下方工具栏同色连通。
-* 底部分隔线铺满条最底一行、延伸至条两端，画在所有 tab 之下（Chrome 同款层叠）：激活 tab 填充与耳角翼自然遮蔽中段，线自耳角弧两侧穿出，相交即衔接、无对接缝；分隔线同时盖住与工具栏的拼接缝（集成方工具栏无需再上叠盖缝）。
+* Active tab outline border + strip-bottom separator: new style token `TabBarStyle.activeBorder` (defaults to the divider color; pass `null` to disable both).
+* 1px outline on the active tab itself (top edge, sides, ears), excluding the bottom edge — it keeps blending with the toolbar below.
+* The bottom separator fills the strip's last pixel row and runs to both ends of the bar, painted beneath all tabs (Chrome-style stacking): the active tab's fill and ear wings naturally eclipse the middle, the line emerges from behind the ear curves — intersection makes the joint, no butt-joint seams. The separator also covers the junction seam with the toolbar (no toolbar overlap needed).
 
 ## 0.2.0
 
-* 右键菜单：右键 tab（或标签条空白区域）弹出上下文菜单——新建标签页 / 关闭（自绘线性图标）、分隔线、关闭左侧 / 关闭其他 / 关闭右侧（批量组，无图标）；不可用项自动禁用；键盘菜单键 / Shift+F10 在焦点 tab 处弹出。
-* `TabBarController` 新增 `closeOthers` / `closeLeft` / `closeRight`（先切激活再批量关闭，事件流干净）。
+* Context menu: right-click a tab (or the empty strip area) opens the menu — New tab / Close (hand-drawn linear icon), divider, Close to the left / Close others / Close to the right (bulk group, no icons); unavailable items are disabled automatically; keyboard Menu / Shift+F10 opens it on the focused tab.
+* `TabBarController` gains `closeOthers` / `closeLeft` / `closeRight` (switch activation first, then bulk-close, with a clean event stream).
 
 ## 0.1.1
 
-* LICENSE 版权人更正（wanghonghust → wanghong）。
+* LICENSE copyright holder corrected (wanghonghust → wanghong).
 
 ## 0.1.0
 
 * Initial release.
-* Chrome 风格标签条：tab 高 34 / 条高 38，宽 72–240px 弹性等分，激活 tab 8px 耳角与工具栏同色连通。
-* 溢出下拉：标签放不下时左侧出现下拉按钮，展开剩余标签菜单（可激活 / 关闭）；激活项始终保持在可见窗口内。
-* 交互：单击切换、× / 中键关闭、关闭激活 tab 自动接右邻、最后一个关闭自动补"新标签页"。
-* 键盘：roving focus + ←/→ 移动 + Enter/Space 激活，Esc / 鼠标点击收起焦点环。
-* 明暗主题（`TabBarStyle.light` / `dark`），零第三方依赖。
+* Chrome-style tab strip: tab height 34 / strip height 38, flexible equal-width tabs (72–240px), active tab with 8px ears blending into the toolbar.
+* Overflow dropdown: when tabs no longer fit, a dropdown button appears on the left listing hidden tabs (activate / close from the menu); the active tab always stays visible.
+* Interactions: click to switch, x / middle-click to close, closing the active tab activates the right neighbor, closing the last tab auto-creates a "New Tab".
+* Keyboard: roving focus + arrow keys to move + Enter/Space to activate, Esc / click to dismiss the focus ring.
+* Light and dark themes (`TabBarStyle.light` / `dark`), zero third-party dependencies.

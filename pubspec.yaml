@@ -1,5 +1,5 @@
 name: browser_tab_bar
-description: "Chrome 风格浏览器标签栏组件：仅标签条本体，内容由使用方自定义。支持增删改查、悬停渐变、耳角连通、键盘导航、明暗主题。"
+description: "Chrome-style browser tab bar widget (tab strip only, page content is up to you): add/close/activate/update tabs, hover fades, toolbar-merged active tab, keyboard navigation, light and dark themes."
 version: 0.2.1
 repository: https://github.com/wanghonghust/chrome_tab_bar
 issue_tracker: https://github.com/wanghonghust/chrome_tab_bar/issues
