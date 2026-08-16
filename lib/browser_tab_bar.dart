@@ -85,6 +85,7 @@ class TabBarStyle {
     required this.hoverOverlay,
     required this.btnHover,
     required this.focus,
+    this.activeBorder,
   });
 
   /// 标签条底色（--tab-strip-bg）
@@ -111,6 +112,12 @@ class TabBarStyle {
   /// 键盘焦点环（--tab-focus）
   final Color focus;
 
+  /// 激活 tab 轮廓描边 + 底部分隔线：tab 本体描顶边 + 两侧 + 耳角；另沿标签条
+  /// 底部画整条分隔线（画在所有 tab 之下，激活 tab 填充与耳角翼自然遮蔽中段，
+  /// 线自耳角弧两侧穿出——Chrome 同款层叠，相交即衔接，无对接缝）；
+  /// null = 全部关闭
+  final Color? activeBorder;
+
   /// 尺寸令牌（--tab-height / --tab-min-w / --tab-max-w / --tab-r）
   static const double tabHeight = 34;
   static const double stripTopPad = 4; // 条高 38 = 顶部留白 4 + tab 34
@@ -133,6 +140,7 @@ class TabBarStyle {
     hoverOverlay: Color(0x73FFFFFF), // rgba(255,255,255,.45)
     btnHover: Color(0x17202124), // rgba(32,33,36,.09)
     focus: Color(0xFF1A73E8),
+    activeBorder: Color(0x29202124), // 与分隔线同色，轮廓清晰不突兀
   );
 
   static const TabBarStyle dark = TabBarStyle(
@@ -144,6 +152,7 @@ class TabBarStyle {
     hoverOverlay: Color(0x14FFFFFF), // rgba(255,255,255,.08)
     btnHover: Color(0x24E8EAED), // rgba(232,234,237,.14)
     focus: Color(0xFF8AB4F8),
+    activeBorder: Color(0x29E8EAED),
   );
 }
 
@@ -512,21 +521,15 @@ class _BrowserTabBarState extends State<BrowserTabBar> {
             child: OverlayPortal(
               controller: _ctxMenuController,
               overlayChildBuilder: _buildContextMenu,
-              child: Container(
-            // .tabbar：高 38（顶 4 + tab 34），右侧留 4
-            height: TabBarStyle.stripTopPad + TabBarStyle.tabHeight,
-            padding: const EdgeInsets.only(
-              top: TabBarStyle.stripTopPad,
-              right: 4,
-            ),
-            color: style.stripBg,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
+              child: LayoutBuilder(
+                builder: (context, constraints) {
                 // ---- 宽度配账（必须与 Row 实际占位一致，否则内容画出界压到 + 按钮）----
                 // 总宽 = 右留白 4 + 新建按钮 40 + (溢出时下拉按钮 36) + tab 内容区
-                final total = constraints.maxWidth;
+                // 本 LayoutBuilder 在 Container 之外，maxWidth = 整条宽；
+                // 减右留白 4 后与原先内层 LayoutBuilder 看到的宽度一致
+                final total = constraints.maxWidth - 4;
                 final count = c.count;
-                final base = total - 4 - _NewTabButton.footprint; // 无溢出内容宽
+                final base = total - _NewTabButton.footprint; // 无溢出内容宽
                 final withBtn = base - _OverflowButton.footprint; // 溢出内容宽
                 // 溢出判定：按最小宽 72 都放不下才算溢出（此时插入下拉按钮）
                 final over =
@@ -542,7 +545,22 @@ class _BrowserTabBarState extends State<BrowserTabBar> {
                         visibleStart: 0,
                       );
                 _layout = layout;
-                return Row(
+
+                // 底部分隔线画在 tab 画布内、所有 tab 之下（Chrome 同款层叠），
+                // 需要整条宽度与画布在条内的 x 原点，让线延伸到条两端
+                final tabsOriginX =
+                    (over ? _OverflowButton.footprint : 0.0) +
+                        TabBarStyle.radius;
+
+                return Container(
+            // .tabbar：高 38（顶 4 + tab 34），右侧留 4
+            height: TabBarStyle.stripTopPad + TabBarStyle.tabHeight,
+            padding: const EdgeInsets.only(
+              top: TabBarStyle.stripTopPad,
+              right: 4,
+            ),
+            color: style.stripBg,
+            child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     if (over)
@@ -567,6 +585,8 @@ class _BrowserTabBarState extends State<BrowserTabBar> {
                           tabWidth: layout.tabWidth,
                           visibleStart: layout.visibleStart,
                           visibleCount: layout.visibleCount,
+                          stripWidth: constraints.maxWidth,
+                          tabsOriginX: tabsOriginX,
                           onEnsureVisible: _ensureVisibleWindow,
                           onContextMenu: _openContextMenu,
                           contextMenuTapGroup: _ctxTapGroup,
@@ -578,9 +598,9 @@ class _BrowserTabBarState extends State<BrowserTabBar> {
                       onTap: () => c.add(const TabData(title: '新标签页')),
                     ),
                   ],
+                ),
                 );
-              },
-            ),
+                },
               ),
             ),
           ),
@@ -589,10 +609,6 @@ class _BrowserTabBarState extends State<BrowserTabBar> {
     );
   }
 }
-
-// ============================================================
-// 标签画布 + 指针/键盘交互（独立 State，保证 hover 即时响应）
-// ============================================================
 
 /// 悬停状态、150ms 动效与命中检测全部收敛在这个小部件内：
 /// 动效期间只有这一块 setState + RepaintBoundary 内重绘，
@@ -604,6 +620,8 @@ class _TabsArea extends StatefulWidget {
     required this.tabWidth,
     required this.visibleStart,
     required this.visibleCount,
+    required this.stripWidth,
+    required this.tabsOriginX,
     this.onEnsureVisible,
     this.onContextMenu,
     this.contextMenuTapGroup,
@@ -618,6 +636,13 @@ class _TabsArea extends StatefulWidget {
 
   /// 可见窗口内标签数（= controller.count 时无溢出）
   final int visibleCount;
+
+  /// 整条标签条宽度：底部分隔线要延伸到条两端（画布只覆盖内容区，
+  /// painter 向画布外绘制，CustomPaint 不裁剪）
+  final double stripWidth;
+
+  /// 画布在条内的 x 原点（(溢出按钮 36) + 耳角留白 8），分隔线坐标换算用
+  final double tabsOriginX;
 
   /// 键盘焦点移出窗口时通知父级平移窗口
   final ValueChanged<int>? onEnsureVisible;
@@ -832,6 +857,8 @@ class _TabsAreaState extends State<_TabsArea> with TickerProviderStateMixin {
                     tabWidth: tabW,
                     visibleStart: widget.visibleStart,
                     visibleCount: widget.visibleCount,
+                    stripWidth: widget.stripWidth,
+                    tabsOriginX: widget.tabsOriginX,
                     hoverIndex: _hoverIndex,
                     hoverCloseIndex: _hoverCloseIndex,
                     focusIndex: _stripFocused ? _focusIndex : -1,
@@ -1513,6 +1540,8 @@ class _TabStripPainter extends CustomPainter {
     required this.tabWidth,
     required this.visibleStart,
     required this.visibleCount,
+    required this.stripWidth,
+    required this.tabsOriginX,
     required this.hoverIndex,
     required this.hoverCloseIndex,
     required this.focusIndex,
@@ -1526,11 +1555,20 @@ class _TabStripPainter extends CustomPainter {
   final double tabWidth;
   final int visibleStart;
   final int visibleCount;
+
+  /// 整条标签条宽度 / 画布在条内的 x 原点：底部分隔线延伸到条两端用
+  final double stripWidth;
+  final double tabsOriginX;
+
   final int? hoverIndex;
   final int? hoverCloseIndex;
   final int focusIndex;
   final Map<int, double> hoverAmt;
   final Map<int, double> closeAmt;
+
+  /// 底部分隔线中心 y（画布坐标）：铺满条最底一行，拼接缝被线盖住
+  /// （集成方工具栏无需再上叠盖缝；关闭 activeBorder 时见 README 集成提示）
+  static const double _bottomLineDy = TabBarStyle.tabHeight - 0.5;
 
   /// TextPainter 缓存（来自 _TabsAreaState，跨帧复用）
   final Map<String, TextPainter> textCache;
@@ -1567,8 +1605,48 @@ class _TabStripPainter extends CustomPainter {
     return p;
   }
 
+  /// 激活 tab 描边专用路径：与 [activePath] 同轮廓的**开放路径**，
+  /// 从左耳角外端 (-r, h) 沿耳角凹弧、左侧、顶部、右侧到右耳角外端 (w+r, h)。
+  /// 不含底边、不 close —— 底边与下方工具栏同色连通；耳角弧画到自然终点
+  /// （切线水平），端点落在底部分隔线行内，与线相交即衔接（线画在 tab 之下）。
+  static Path activeBorderPath(double w) {
+    final p = Path();
+    p.moveTo(-_r, _h);
+    p.arcToPoint(
+      const Offset(0, _h - _r),
+      radius: const Radius.circular(_r),
+      clockwise: false,
+    );
+    p.lineTo(0, _r);
+    p.arcToPoint(const Offset(_r, 0), radius: const Radius.circular(_r));
+    p.lineTo(w - _r, 0);
+    p.arcToPoint(Offset(w, _r), radius: const Radius.circular(_r));
+    p.lineTo(w, _h - _r);
+    p.arcToPoint(
+      Offset(w + _r, _h),
+      radius: const Radius.circular(_r),
+      clockwise: false,
+    );
+    return p;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
+    // ---- 0) 底部分隔线：整条宽度，画在所有 tab 之下（Chrome 同款层叠）----
+    // 激活 tab 填充与耳角翼（不透明 pageBg）自然遮蔽中段，线自耳角弧两侧
+    // 穿出——相交即衔接，无对接缝/抗锯齿双收边问题。画布只覆盖内容区，
+    // 按条坐标换算后向画布外延伸（CustomPaint 不裁剪）到条两端。
+    final border = style.activeBorder;
+    if (border != null) {
+      canvas.drawLine(
+        Offset(-tabsOriginX, _bottomLineDy),
+        Offset(stripWidth - tabsOriginX, _bottomLineDy),
+        Paint()
+          ..color = border
+          ..strokeWidth = 1,
+      );
+    }
+
     final tabs = controller.tabs;
     final end = math.min(visibleStart + visibleCount, tabs.length);
     for (var i = visibleStart; i < end; i++) {
@@ -1606,6 +1684,18 @@ class _TabStripPainter extends CustomPainter {
     } else {
       // ---- 3) 激活：本体 + 耳角翼（后画覆盖邻层，翼外透明区透出邻 tab 背景）----
       canvas.drawPath(activePath(w), Paint()..color = style.pageBg);
+      // ---- 3b) 可选：最外层轮廓描边（开放路径不含底边，见 activeBorderPath）----
+      // 画在填充之后、邻层之上，外半像素落在邻 tab / 标签条上，形成完整轮廓线
+      final border = style.activeBorder;
+      if (border != null) {
+        canvas.drawPath(
+          activeBorderPath(w),
+          Paint()
+            ..color = border
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1,
+        );
+      }
     }
 
     // ---- 4) 键盘焦点环（四周内缩 2px，线宽 1.2，仅 :focus-visible）----
@@ -1729,6 +1819,8 @@ class _TabStripPainter extends CustomPainter {
       old.tabWidth != tabWidth ||
       old.visibleStart != visibleStart ||
       old.visibleCount != visibleCount ||
+      old.stripWidth != stripWidth ||
+      old.tabsOriginX != tabsOriginX ||
       old.hoverIndex != hoverIndex ||
       old.hoverCloseIndex != hoverCloseIndex ||
       old.focusIndex != focusIndex ||

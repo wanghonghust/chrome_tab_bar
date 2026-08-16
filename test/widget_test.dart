@@ -217,6 +217,78 @@ void main() {
       await tester.pumpAndSettle();
       expect(await titleLum(true), lessThan(0.5));
     });
+
+    testWidgets('activeBorder：tab 本体描边保留；底部两侧延伸整条且激活处断开', (tester) async {
+      // 视口 300、2 标签激活第二个：tabW = 256/2 = 128，激活 tab x∈[136,264]，
+      // 线画在所有 tab 之下：耳角翼遮蔽至弧线处 ≈[130.8,269.2] 中段无墨，
+      // 线自耳角弧两侧穿出（Chrome 同款层叠）。采样点：
+      //  A(185, 4)  激活 tab 顶边空白处 —— tab 本体描边（变暗）
+      //  B(2, 37)   条最左端底部 —— 左侧延伸线（变暗）
+      //  B2(290,37) 条最右端底部 —— 右侧延伸线（变暗）
+      //  C(200,37)  激活 tab 底部 —— 缺口处无线（两版一致）
+      // toImage/toByteData 依赖真实异步，须包 tester.runAsync（见主题色测试）。
+      Future<int> px(TabBarStyle? style, int x, int y) async {
+        final key = GlobalKey();
+        final c = TabBarController(
+          initialTabs: const [TabData(title: 'A'), TabData(title: 'B')],
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: RepaintBoundary(
+                key: key,
+                child: SizedBox(
+                  width: 300,
+                  child: BrowserTabBar(controller: c, style: style),
+                ),
+              ),
+            ),
+          ),
+        );
+        c.activate('tab-2');
+        await tester.pumpAndSettle();
+        final boundary =
+            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        var bytes = Uint8List(0);
+        await tester.runAsync(() async {
+          final image = await boundary.toImage(pixelRatio: 1);
+          bytes = (await image.toByteData())!.buffer.asUint8List();
+        });
+        return bytes[(y * boundary.size.width.toInt() + x) * 4];
+      }
+
+      // 关闭描边的浅色主题（其余令牌与 light 一致）
+      const noBorder = TabBarStyle(
+        stripBg: Color(0xFFDEE1E6),
+        pageBg: Color(0xFFFFFFFF),
+        fg: Color(0xFF202124),
+        fgMuted: Color(0xFF5F6368),
+        line: Color(0x29202124),
+        hoverOverlay: Color(0x73FFFFFF),
+        btnHover: Color(0x17202124),
+        focus: Color(0xFF1A73E8),
+      );
+
+      expect(TabBarStyle.light.activeBorder, isNotNull); // 默认开启
+      // A：激活 tab 本体顶边描边
+      final aWith = await px(null, 185, 4); // 缺省 style → 跟随亮色主题
+      final aWithout = await px(noBorder, 185, 4);
+      expect(aWithout, greaterThan(250)); // 无描边：接近纯白
+      expect(aWith, lessThan(aWithout - 10)); // 描边使顶边变暗
+      // B / B2：底部左右两侧延伸线（叠 stripBg 亮底变暗）
+      final blWith = await px(null, 2, 37);
+      final blWithout = await px(noBorder, 2, 37);
+      expect(blWithout, greaterThan(215)); // stripBg 亮底（r≈222）
+      expect(blWith, lessThan(blWithout - 8));
+      final brWith = await px(null, 290, 37);
+      final brWithout = await px(noBorder, 290, 37);
+      expect(brWith, lessThan(brWithout - 8));
+      // C：激活 tab 底部缺口处无线
+      final gWith = await px(null, 200, 37);
+      final gWithout = await px(noBorder, 200, 37);
+      expect(gWith, greaterThan(250)); // 激活 tab 白底
+      expect((gWith - gWithout).abs(), lessThan(6));
+    });
   });
 
   group('溢出下拉（标签放不下时左侧按钮展开剩余标签）', () {

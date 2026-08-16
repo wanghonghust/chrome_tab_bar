@@ -17,6 +17,7 @@ A Chrome-style browser tab bar (pure UI library). **Contains only the tab strip 
 - Chrome look: tab height 34 / strip height 38, top corner radius 8px, flexible equal-width tabs (72–240px)
 - Overflow dropdown: when tabs no longer fit, a square dropdown button appears on the left listing the hidden tabs (activate / close from the menu); the active tab always stays in the visible window
 - Active tab has 8px concave-flare "ears" on both sides, blending into the toolbar below; the transparent quarters reveal the real background of neighboring tabs
+- Active tab outline border: `TabBarStyle.activeBorder` strokes the active tab (top edge, sides, ears, 1px) and draws a separator along the strip bottom running to both ends of the bar — painted beneath all tabs (Chrome-style stacking), so the active tab and its ears naturally eclipse the middle and the line emerges from behind the ear curves with no junction seams; `null` disables both
 - Interactions: click to switch, × / middle-click to close, closing the active tab activates the right neighbor (or left if none), closing the last tab auto-creates a "New Tab"
 - Context menu: right-click a tab (or empty strip area) opens the menu — New tab / Close / Close tabs to the left / Close other tabs / Close tabs to the right; unavailable items are disabled automatically. Keyboard: Menu key / Shift+F10 opens it on the focused tab
 - Keyboard: roving focus + ←/→ to move (including hidden tabs, the visible window auto-pans) + Enter/Space to activate
@@ -53,7 +54,7 @@ BrowserTabBar(controller: controller);
 
 The content area is entirely yours — `BrowserTabBar` renders no tab content.
 
-Integration note: the active tab and the toolbar below it share the same color and are meant to visually connect. Give your toolbar an opaque background and overlap it slightly onto the bottom edge of the strip (see `example/lib/main.dart`, which uses `Transform.translate(0, -1)` to hide a hairline seam at fractional DPI scales).
+Integration note: the active tab and the toolbar below it share the same color and are meant to visually connect. Give your toolbar an opaque background and place it directly below the strip — with the default `activeBorder`, the bottom separator fills the strip's last pixel row and covers the junction (see `example/lib/main.dart`). If you disable `activeBorder` (null), overlap the toolbar ~1px onto the strip (`Transform.translate(0, -1)`) to hide a hairline seam at fractional DPI scales.
 
 ## Example
 
@@ -91,6 +92,7 @@ Chrome 风格浏览器标签栏组件（纯 UI 库）。**只包含标签条本�
 - Chrome 形态：tab 高 34 / 条高 38，顶部圆角 8px，宽 72–240px 弹性等分
 - 溢出下拉：标签放不下时左侧出现矩形下拉按钮，展开剩余标签菜单（可激活 / 关闭）；激活项始终保持在可见窗口内
 - 激活 tab 两侧 8px 耳角（concave flare），与工具栏同色连通；透明区透出邻 tab 真实背景
+- 激活 tab 轮廓描边：`TabBarStyle.activeBorder` 为激活 tab 画 1px 描边（顶边、两侧、耳角），并沿标签条底部画整条分隔线——画在所有 tab 之下（Chrome 同款层叠），激活 tab 与耳角自然遮蔽中段，线自耳角弧两侧穿出，无对接缝；传 `null` 全部关闭
 - 交互：单击切换、× / 中键关闭、关闭激活 tab 自动接右邻（无则左邻）、最后一个关闭自动补"新标签页"
 - 右键菜单：右键 tab（或标签条空白区域）弹出菜单——新建标签页 / 关闭 / 关闭左侧 / 关闭其他 / 关闭右侧；不可用项自动禁用；键盘菜单键 / Shift+F10 在焦点 tab 处弹出
 - 键盘：roving focus + ←/→ 移动（含隐藏标签，可见窗口自动平移）+ Enter/Space 激活
@@ -127,7 +129,7 @@ BrowserTabBar(controller: controller);
 
 内容区完全由你决定——`BrowserTabBar` 不渲染任何标签内容。
 
-集成提示：激活 tab 与下方工具栏是"同色连通"的，工具栏请使用不透明背景色，并叠在标签条底部边缘之上（演示见 `example/lib/main.dart`，其中用 `Transform.translate(0, -1)` 消除分数 DPI 下的拼缝灰线）。
+集成提示：激活 tab 与下方工具栏是"同色连通"的，工具栏请使用不透明背景色，直接紧贴标签条下方即可——默认 `activeBorder` 的底部分隔线铺满标签条最底一行，已盖住拼接缝（演示见 `example/lib/main.dart`）。若关闭 `activeBorder`（传 `null`），请让工具栏上叠标签条 ~1px（`Transform.translate(0, -1)`）以消除分数 DPI 下的拼缝灰线。
 
 ## 运行示例
 

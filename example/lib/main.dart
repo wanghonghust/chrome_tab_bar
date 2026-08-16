@@ -146,11 +146,13 @@ class _DemoPageState extends State<DemoPage> {
                       BrowserTabBar(controller: _controller),
 
                       // ---- 工具栏：与激活 tab 同色连通 ----
-                      // 上移 1px 压住标签条底边：工具栏不透明且画序在后，
-                      // 可完整覆盖拼缝像素，消除分数 DPI（125%/150% 缩放）下
-                      // 两个同色面拼接处抗锯齿混出的标签条灰色细线
+                      // 紧贴标签条下方即可（不再 -1px 上叠）：默认 activeBorder
+                      // 的底部分隔线铺满标签条最底一行，已盖住拼接缝；激活 tab
+                      // 与工具栏同色（白+白）相接，分数 DPI 也不混灰线。
+                      // 若关闭 activeBorder，请改回上叠盖缝：
+                      // Transform.translate(offset: const Offset(0, -1), ...)
                       Transform.translate(
-                        offset: const Offset(0, -1),
+                        offset: Offset.zero,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
