@@ -18,6 +18,7 @@ A Chrome-style browser tab bar (pure UI library). **Contains only the tab strip 
 - Overflow dropdown: when tabs no longer fit, a square dropdown button appears on the left listing the hidden tabs (activate / close from the menu); the active tab always stays in the visible window
 - Active tab has 8px concave-flare "ears" on both sides, blending into the toolbar below; the transparent quarters reveal the real background of neighboring tabs
 - Interactions: click to switch, × / middle-click to close, closing the active tab activates the right neighbor (or left if none), closing the last tab auto-creates a "New Tab"
+- Context menu: right-click a tab (or empty strip area) opens the menu — New tab / Close / Close tabs to the left / Close other tabs / Close tabs to the right; unavailable items are disabled automatically. Keyboard: Menu key / Shift+F10 opens it on the focused tab
 - Keyboard: roving focus + ←/→ to move (including hidden tabs, the visible window auto-pans) + Enter/Space to activate
 - Animations: hover / close-button exponential ease-out fades (~150ms)
 - Light & dark themes: `TabBarStyle.light` / `TabBarStyle.dark`; defaults to `Theme.brightness`
@@ -39,6 +40,9 @@ controller.add(const TabData(title: 'New Tab'));
 controller.close(id);
 controller.activate(id);
 controller.update(id, title: 'New title', url: 'example.com');
+controller.closeOthers(id); // close everything except [id]
+controller.closeLeft(id);   // close all tabs to the left of [id]
+controller.closeRight(id);  // close all tabs to the right of [id]
 
 // Listen for changes (activate / add / close) and render your own content
 controller.onChange = (event) => setState(() { /* your content */ });
@@ -88,6 +92,7 @@ Chrome 风格浏览器标签栏组件（纯 UI 库）。**只包含标签条本�
 - 溢出下拉：标签放不下时左侧出现矩形下拉按钮，展开剩余标签菜单（可激活 / 关闭）；激活项始终保持在可见窗口内
 - 激活 tab 两侧 8px 耳角（concave flare），与工具栏同色连通；透明区透出邻 tab 真实背景
 - 交互：单击切换、× / 中键关闭、关闭激活 tab 自动接右邻（无则左邻）、最后一个关闭自动补"新标签页"
+- 右键菜单：右键 tab（或标签条空白区域）弹出菜单——新建标签页 / 关闭 / 关闭左侧 / 关闭其他 / 关闭右侧；不可用项自动禁用；键盘菜单键 / Shift+F10 在焦点 tab 处弹出
 - 键盘：roving focus + ←/→ 移动（含隐藏标签，可见窗口自动平移）+ Enter/Space 激活
 - 动效：悬停 / 关闭钮指数 ease-out 渐变（~150ms）
 - 明暗主题：`TabBarStyle.light` / `TabBarStyle.dark`，不传则跟随 `Theme.brightness`
@@ -109,6 +114,9 @@ controller.add(const TabData(title: '新标签页'));
 controller.close(id);
 controller.activate(id);
 controller.update(id, title: '新标题', url: 'example.com');
+controller.closeOthers(id); // 关闭除 [id] 外的所有标签
+controller.closeLeft(id);   // 关闭 [id] 左侧的所有标签
+controller.closeRight(id);  // 关闭 [id] 右侧的所有标签
 
 // 监听变化（activate / add / close），据此渲染你自己的内容区
 controller.onChange = (event) => setState(() { /* 自定义内容 */ });

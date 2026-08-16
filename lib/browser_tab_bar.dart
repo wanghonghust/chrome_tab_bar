@@ -7,6 +7,8 @@
  *           四分之一圆透明区透出邻 tab 真实背景（静止 = 标签条色，悬停 = 邻 tab 悬停色，天然联动）
  *   - 状态：激活 = 页面同色 / 默认透明 / 悬停微亮圆角 8；分隔线仅相邻非激活 tab 间 1px
  *   - 交互：单击切换、× / 中键关闭、关闭激活 tab 自动接右邻（无则左邻）、最后一个关闭自动补"新标签页"
+ *   - 右键：tab / 空白区域弹出上下文菜单（新建、关闭、关闭左侧、关闭其他、关闭右侧；
+ *           菜单键 / Shift+F10 在焦点 tab 处弹出；不可用项自动禁用）
  *   - 溢出：左侧下拉按钮弹出剩余标签菜单，可激活 / 关闭；点外部关闭
  *   - 键盘：roving focus + ←/→ 移动（含隐藏标签，窗口自动平移）+ Enter/Space 激活
  *   - 动效：悬停 / 关闭钮指数 ease-out 渐变（首帧即达 ~40%，~150ms 收敛）
@@ -22,6 +24,8 @@
  *   controller.activate(id);                 // 激活
  *   controller.update(id, title: '...');     // 更新数据
  *   controller.active();                     // 当前激活 id
+ *   controller.closeOthers(id);              // 关闭其他（右键菜单同款）
+ *   controller.closeLeft(id) / closeRight(id); // 关闭左侧 / 右侧
  */
 library;
 
@@ -30,7 +34,8 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
+import 'package:flutter/services.dart'
+    show HardwareKeyboard, KeyDownEvent, LogicalKeyboardKey;
 
 // ============================================================
 // 数据模型
@@ -258,6 +263,39 @@ class TabBarController extends ChangeNotifier {
     _emit(TabBarChangeEvent(type: TabChangeType.update, id: id, data: _tabs[idx]));
   }
 
+  /// 关闭除 [id] 外的所有标签（右键菜单"关闭其他标签页"）。
+  /// 先把激活切到保留的标签，再逐个关闭——被关的都不是激活项，
+  /// 不会触发 close 的邻位接续，事件流干净（activate + N 个 close）。
+  void closeOthers(String id) {
+    if (get(id) == null || _tabs.length < 2) return;
+    if (_activeId != id) activate(id);
+    for (final t in List.of(_tabs)) {
+      if (t.id != id) close(t.id!);
+    }
+  }
+
+  /// 关闭 [id] 右侧的所有标签（右键菜单"关闭右侧标签页"）。
+  /// 若激活项在被关范围内，先激活 [id] 再关闭，理由同 [closeOthers]。
+  void closeRight(String id) {
+    final idx = indexOf(id);
+    if (idx < 0 || idx >= _tabs.length - 1) return;
+    if (indexOf(_activeId ?? '') > idx) activate(id);
+    for (var i = _tabs.length - 1; i > idx; i--) {
+      close(_tabs[i].id!);
+    }
+  }
+
+  /// 关闭 [id] 左侧的所有标签（右键菜单"关闭左侧标签页"）。
+  /// 若激活项在被关范围内，先激活 [id] 再关闭，理由同 [closeOthers]。
+  void closeLeft(String id) {
+    final idx = indexOf(id);
+    if (idx <= 0) return;
+    if (indexOf(_activeId ?? '') < idx) activate(id);
+    for (var i = idx - 1; i >= 0; i--) {
+      close(_tabs[i].id!);
+    }
+  }
+
   int _intSeqOf(String id) {
     final m = RegExp(r'tab-(\d+)$').firstMatch(id);
     return m == null ? 0 : int.parse(m.group(1)!);
@@ -320,6 +358,19 @@ class _BrowserTabBarState extends State<BrowserTabBar> {
   /// 最近一次布局结果（供 _ensureVisibleWindow 平移窗口时读取容量）
   _OverflowLayout? _layout;
 
+  // ---- 右键菜单（OverlayPortal 挂在本组件上，LayerLink 定位到整条）----
+  final OverlayPortalController _ctxMenuController = OverlayPortalController();
+  final LayerLink _ctxLink = LayerLink();
+
+  /// tab 区域与菜单同组：右键 tab 不触发菜单的 onTapOutside（避免"刚打开即关闭"）
+  final Object _ctxTapGroup = Object();
+
+  /// 菜单相对标签条左上角的偏移（右键位置 / 键盘焦点 tab 位置）
+  Offset _ctxOffset = Offset.zero;
+
+  /// 右键目标标签 id；空白区域右键为 null（"关闭"系列菜单项禁用）
+  String? _ctxTabId;
+
   TabBarStyle get _style =>
       widget.style ?? TabBarStyle.of(Theme.of(context).brightness);
 
@@ -377,6 +428,74 @@ class _BrowserTabBarState extends State<BrowserTabBar> {
     });
   }
 
+  // ---- 右键菜单 ----
+
+  /// [tabIndex] 为 null 表示右键了空白区域；[globalPosition] 全局坐标（菜单弹出处）
+  void _openContextMenu(int? tabIndex, Offset globalPosition) {
+    final c = widget.controller;
+    final box = context.findRenderObject()! as RenderBox;
+    // 菜单左上角对齐右键位置，并钳制在条内（防菜单右/下出界）
+    final local = box.globalToLocal(globalPosition);
+    setState(() {
+      _ctxOffset = Offset(
+        local.dx
+            .clamp(0.0, box.size.width - _TabContextMenu.width - 8)
+            .toDouble(),
+        local.dy.clamp(0.0, math.max(0.0, box.size.height - 8)).toDouble(),
+      );
+      _ctxTabId = (tabIndex == null || tabIndex >= c.count)
+          ? null
+          : c.tabs[tabIndex].id;
+    });
+    if (!_ctxMenuController.isShowing) _ctxMenuController.show();
+  }
+
+  void _hideContextMenu() {
+    if (_ctxMenuController.isShowing) _ctxMenuController.hide();
+  }
+
+  Widget _buildContextMenu(BuildContext context) {
+    final c = widget.controller;
+    final style = _style;
+    // 菜单打开期间标签集可能变化（理论上菜单模态，此处仍重查一遍）
+    final idx = _ctxTabId == null ? -1 : c.indexOf(_ctxTabId!);
+    final id = idx >= 0 ? _ctxTabId! : null;
+    void run(VoidCallback action) {
+      _hideContextMenu();
+      action();
+    }
+
+    return Positioned(
+      width: _TabContextMenu.width,
+      child: CompositedTransformFollower(
+        link: _ctxLink,
+        targetAnchor: Alignment.topLeft,
+        followerAnchor: Alignment.topLeft,
+        offset: _ctxOffset,
+        child: TapRegion(
+          groupId: _ctxTapGroup,
+          onTapOutside: (_) => _hideContextMenu(),
+          child: _TabContextMenu(
+            style: style,
+            onNewTab: () => run(() => c.add(const TabData(title: '新标签页'))),
+            onClose: id == null
+                ? null
+                : () => run(() => c.close(id)),
+            onCloseLeft: (id == null || idx == 0)
+                ? null
+                : () => run(() => c.closeLeft(id)),
+            onCloseOthers: (id == null || c.count < 2)
+                ? null
+                : () => run(() => c.closeOthers(id)),
+            onCloseRight: (id == null || idx == c.count - 1)
+                ? null
+                : () => run(() => c.closeRight(id)),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final style = _style;
@@ -387,7 +506,13 @@ class _BrowserTabBarState extends State<BrowserTabBar> {
       builder: (context, _) {
         return Semantics(
           label: widget.label,
-          child: Container(
+          child: CompositedTransformTarget(
+            // 右键菜单的定位锚：覆盖整条标签条（_ctxOffset 相对此坐标系）
+            link: _ctxLink,
+            child: OverlayPortal(
+              controller: _ctxMenuController,
+              overlayChildBuilder: _buildContextMenu,
+              child: Container(
             // .tabbar：高 38（顶 4 + tab 34），右侧留 4
             height: TabBarStyle.stripTopPad + TabBarStyle.tabHeight,
             padding: const EdgeInsets.only(
@@ -443,6 +568,8 @@ class _BrowserTabBarState extends State<BrowserTabBar> {
                           visibleStart: layout.visibleStart,
                           visibleCount: layout.visibleCount,
                           onEnsureVisible: _ensureVisibleWindow,
+                          onContextMenu: _openContextMenu,
+                          contextMenuTapGroup: _ctxTapGroup,
                         ),
                       ),
                     ),
@@ -453,6 +580,8 @@ class _BrowserTabBarState extends State<BrowserTabBar> {
                   ],
                 );
               },
+            ),
+              ),
             ),
           ),
         );
@@ -476,6 +605,8 @@ class _TabsArea extends StatefulWidget {
     required this.visibleStart,
     required this.visibleCount,
     this.onEnsureVisible,
+    this.onContextMenu,
+    this.contextMenuTapGroup,
   });
 
   final TabBarController controller;
@@ -490,6 +621,12 @@ class _TabsArea extends StatefulWidget {
 
   /// 键盘焦点移出窗口时通知父级平移窗口
   final ValueChanged<int>? onEnsureVisible;
+
+  /// 右键（tab 或空白区域）回调：tabIndex 为 null = 空白区域；参数为全局坐标
+  final void Function(int? tabIndex, Offset globalPosition)? onContextMenu;
+
+  /// 与右键菜单同组的 TapRegion id（右键 tab 不触发菜单 onTapOutside）
+  final Object? contextMenuTapGroup;
 
   @override
   State<_TabsArea> createState() => _TabsAreaState();
@@ -652,15 +789,23 @@ class _TabsAreaState extends State<_TabsArea> with TickerProviderStateMixin {
         // localPosition 已是内容坐标（本组件在 Padding(8) 之内），
         // 不可再减耳角留白，否则命中区整体右移 8px
         onHover: (e) => _updateHover(e.localPosition),
-        child: Listener(
-          // 中键关闭（对应 auxclick button === 1）
-          onPointerDown: (e) {
-            if (e.buttons & kMiddleMouseButton != 0) {
-              final i = _tabAt(e.localPosition);
-              if (i != null) c.close(c.tabs[i].id!);
-            }
-          },
-          child: GestureDetector(
+        child: TapRegion(
+          groupId: widget.contextMenuTapGroup,
+          child: Listener(
+            // 中键关闭（对应 auxclick button === 1）；
+            // 右键弹上下文菜单（tab 上 = 该 tab 的菜单，空白区域 = 仅"新建"可用）
+            onPointerDown: (e) {
+              if (e.buttons & kSecondaryButton != 0) {
+                widget.onContextMenu?.call(
+                  _tabAt(e.localPosition),
+                  e.position,
+                );
+              } else if (e.buttons & kMiddleMouseButton != 0) {
+                final i = _tabAt(e.localPosition);
+                if (i != null) c.close(c.tabs[i].id!);
+              }
+            },
+            child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTapUp: (d) {
               final p = d.localPosition;
@@ -700,6 +845,7 @@ class _TabsAreaState extends State<_TabsArea> with TickerProviderStateMixin {
                 ),
               ),
             ),
+            ),
           ),
         ),
       ),
@@ -728,6 +874,20 @@ class _TabsAreaState extends State<_TabsArea> with TickerProviderStateMixin {
     if (key == LogicalKeyboardKey.escape) {
       // Esc 收起焦点环（保持激活态不变）
       _focusNode.unfocus();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.contextMenu ||
+        key == LogicalKeyboardKey.f10 && HardwareKeyboard.instance.isShiftPressed) {
+      // 菜单键 / Shift+F10：在焦点 tab 底部中点弹右键菜单
+      final rel = (_focusIndex - widget.visibleStart)
+          .clamp(0, widget.visibleCount - 1);
+      final box = context.findRenderObject()! as RenderBox;
+      widget.onContextMenu?.call(
+        _focusIndex,
+        box.localToGlobal(
+          Offset((rel + 0.5) * widget.tabWidth, TabBarStyle.tabHeight),
+        ),
+      );
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -1129,6 +1289,214 @@ class _OverflowMenuItemState extends State<_OverflowMenuItem> {
       ),
     );
   }
+}
+
+// ============================================================
+// 右键菜单（与溢出下拉同风格：Material 卡片 + 圆角 6 条目）
+// ============================================================
+
+/// 标签右键菜单：新建 / 关闭 / 关闭左侧 / 关闭其他 / 关闭右侧。
+/// 回调为 null 的项渲染为禁用态（无 hover、不可点）。
+class _TabContextMenu extends StatelessWidget {
+  const _TabContextMenu({
+    required this.style,
+    required this.onNewTab,
+    this.onClose,
+    this.onCloseLeft,
+    this.onCloseOthers,
+    this.onCloseRight,
+  });
+
+  /// 菜单固定宽（防出界钳制的依据）：左 10 + 图标列 18 + 间距 10 +
+  /// 最长文字（"关闭左侧标签页" 7 字 ≈ 84）+ 右余量
+  static const double width = 150;
+
+  final TabBarStyle style;
+  final VoidCallback onNewTab;
+  final VoidCallback? onClose;
+  final VoidCallback? onCloseLeft;
+  final VoidCallback? onCloseOthers;
+  final VoidCallback? onCloseRight;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      type: MaterialType.canvas,
+      color: style.pageBg,
+      elevation: 6,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: style.line),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _ContextMenuItem(
+              icon: _MenuIcon.newTab,
+              label: '新建标签页',
+              style: style,
+              onTap: onNewTab,
+            ),
+            _ContextMenuItem(
+              icon: _MenuIcon.close,
+              label: '关闭',
+              style: style,
+              onTap: onClose,
+            ),
+            // 分组分隔：单个操作在上，批量关闭在下（无图标，文字与上组对齐）
+            _ContextMenuDivider(style: style),
+            _ContextMenuItem(
+              label: '关闭左侧标签页',
+              style: style,
+              onTap: onCloseLeft,
+            ),
+            _ContextMenuItem(
+              label: '关闭其他标签页',
+              style: style,
+              onTap: onCloseOthers,
+            ),
+            _ContextMenuItem(
+              label: '关闭右侧标签页',
+              style: style,
+              onTap: onCloseRight,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 菜单分隔线：1px line 色，左右缩进与条目文字对齐留白
+class _ContextMenuDivider extends StatelessWidget {
+  const _ContextMenuDivider({required this.style});
+
+  final TabBarStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      child: Container(height: 1, color: style.line),
+    );
+  }
+}
+
+/// 菜单条目：32 高，圆角 6，图标 + 文字，悬停整行高亮（与溢出下拉条目一致）。
+/// [icon] 为 null 时保留图标列空位，文字与有图标项对齐。
+class _ContextMenuItem extends StatefulWidget {
+  const _ContextMenuItem({
+    this.icon,
+    required this.label,
+    required this.style,
+    this.onTap,
+  });
+
+  final _MenuIcon? icon;
+  final String label;
+  final TabBarStyle style;
+
+  /// null = 禁用（灰字、无 hover、不可点）
+  final VoidCallback? onTap;
+
+  @override
+  State<_ContextMenuItem> createState() => _ContextMenuItemState();
+}
+
+class _ContextMenuItemState extends State<_ContextMenuItem> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onTap != null;
+    final s = widget.style;
+    // 禁用态：fgMuted 再降一半透明度（浅深主题均可辨）
+    final disabledColor = s.fgMuted.withValues(alpha: 0.5);
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+      onEnter: (_) {
+        if (enabled) setState(() => _hover = true);
+      },
+      onExit: (_) {
+        if (_hover) setState(() => _hover = false);
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Container(
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: _hover ? s.btnHover : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: widget.icon == null
+                    ? null
+                    : CustomPaint(
+                        painter: _MenuIconPainter(
+                          icon: widget.icon!,
+                          // 图标取次级灰（Chrome 菜单图标与文字近色但略轻）
+                          color: enabled ? s.fgMuted : disabledColor,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: enabled ? s.fg : disabledColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 菜单图标（自绘线性，与标签条 × / + 同风格：1.4 线宽圆头）
+enum _MenuIcon { newTab, close }
+
+class _MenuIconPainter extends CustomPainter {
+  const _MenuIconPainter({required this.icon, required this.color});
+
+  final _MenuIcon icon;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final p = Paint()
+      ..color = color
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    switch (icon) {
+      case _MenuIcon.newTab:
+        canvas.drawLine(c + const Offset(0, -5), c + const Offset(0, 5), p);
+        canvas.drawLine(c + const Offset(-5, 0), c + const Offset(5, 0), p);
+      case _MenuIcon.close:
+        canvas.drawLine(c + const Offset(-4.5, -4.5), c + const Offset(4.5, 4.5), p);
+        canvas.drawLine(c + const Offset(4.5, -4.5), c + const Offset(-4.5, 4.5), p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MenuIconPainter old) =>
+      old.icon != icon || old.color != color;
 }
 
 // ============================================================

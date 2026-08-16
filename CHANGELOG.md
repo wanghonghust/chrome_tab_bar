@@ -1,3 +1,8 @@
+## 0.2.0
+
+* 右键菜单：右键 tab（或标签条空白区域）弹出上下文菜单——新建标签页 / 关闭（自绘线性图标）、分隔线、关闭左侧 / 关闭其他 / 关闭右侧（批量组，无图标）；不可用项自动禁用；键盘菜单键 / Shift+F10 在焦点 tab 处弹出。
+* `TabBarController` 新增 `closeOthers` / `closeLeft` / `closeRight`（先切激活再批量关闭，事件流干净）。
+
 ## 0.1.1
 
 * LICENSE 版权人更正（wanghonghust → wanghong）。

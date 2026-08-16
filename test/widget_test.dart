@@ -2,6 +2,7 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/gestures.dart' show PointerDeviceKind, kSecondaryButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -306,6 +307,192 @@ void main() {
       expect(c.get('tab-4'), isNull); // 标签 3 = tab-4 已被关闭
       expect(find.text('标签 3'), findsNothing);
       expect(find.text('标签 4'), findsOneWidget); // 菜单仍开着并已同步
+    });
+  });
+
+  group('TabBarController 批量关闭（右键菜单同款 API）', () {
+    test('closeOthers：保留目标并切激活，事件流干净', () {
+      final events = <String>[];
+      final c = TabBarController(
+        initialTabs: const [
+          TabData(title: 'A'),
+          TabData(title: 'B'),
+          TabData(title: 'C'),
+        ],
+      )..onChange = (e) => events.add('${e.type.name}:${e.id}');
+
+      c.closeOthers('tab-2');
+      expect(c.count, 1);
+      expect(c.tabs.single.id, 'tab-2');
+      expect(c.active(), 'tab-2');
+      // 先 activate 到保留项，被关的都不是激活项（不触发 close 的邻位接续）
+      expect(events, ['activate:tab-2', 'close:tab-1', 'close:tab-3']);
+    });
+
+    test('closeOthers：目标已激活不产生多余 activate；仅剩自身时 no-op', () {
+      final events = <TabChangeType>[];
+      final c = TabBarController(
+        initialTabs: const [TabData(title: 'A'), TabData(title: 'B')],
+      )..onChange = (e) => events.add(e.type);
+
+      c.closeOthers('tab-1');
+      expect(c.count, 1);
+      expect(events, [TabChangeType.close]);
+
+      events.clear();
+      c.closeOthers('tab-1');
+      expect(c.count, 1);
+      expect(events, isEmpty);
+    });
+
+    test('closeRight：激活项在被关范围内 → 先切到目标；尾项 no-op', () {
+      final c = TabBarController(
+        initialTabs: const [
+          TabData(title: 'A'),
+          TabData(title: 'B'),
+          TabData(title: 'C'),
+          TabData(title: 'D'),
+        ],
+      );
+      c.activate('tab-4');
+      c.closeRight('tab-2');
+      expect(c.tabs.map((t) => t.id), ['tab-1', 'tab-2']);
+      expect(c.active(), 'tab-2');
+
+      c.closeRight('tab-2'); // tab-2 已是最后一项 → 无事发生
+      expect(c.count, 2);
+    });
+
+    test('closeLeft：激活项在被关范围内 → 先切到目标；首项 no-op', () {
+      final c = TabBarController(
+        initialTabs: const [
+          TabData(title: 'A'),
+          TabData(title: 'B'),
+          TabData(title: 'C'),
+        ],
+      );
+      c.activate('tab-1');
+      c.closeLeft('tab-2');
+      expect(c.tabs.map((t) => t.id), ['tab-2', 'tab-3']);
+      expect(c.active(), 'tab-2');
+
+      c.closeLeft('tab-2'); // tab-2 已是首项 → 无事发生
+      expect(c.count, 2);
+    });
+  });
+
+  group('右键菜单（tab / 空白区域 + 菜单项禁用态）', () {
+    Widget wrap(TabBarController c, {double width = 600}) => MaterialApp(
+          home: Scaffold(
+            body: SizedBox(width: width, child: BrowserTabBar(controller: c)),
+          ),
+        );
+
+    Future<void> rightClick(WidgetTester tester, Offset at) async {
+      final g = await tester.startGesture(
+        at,
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryButton,
+      );
+      await g.up();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('右键 tab 弹出菜单；点"关闭右侧标签页"生效并收起', (tester) async {
+      final c = TabBarController(
+        initialTabs: const [
+          TabData(title: 'A'),
+          TabData(title: 'B'),
+          TabData(title: 'C'),
+        ],
+      );
+      await tester.pumpWidget(wrap(c));
+      await tester.pumpAndSettle();
+
+      // 宽 600：内容宽 556，3 tab 均分 ~185.3；右键中间 tab（index 1）
+      await rightClick(tester, const Offset(8 + 185 + 90, 21));
+
+      expect(find.text('新建标签页'), findsOneWidget);
+      expect(find.text('关闭左侧标签页'), findsOneWidget);
+      await tester.tap(find.text('关闭右侧标签页'));
+      await tester.pumpAndSettle();
+
+      expect(c.tabs.map((t) => t.title), ['A', 'B']);
+      expect(find.text('关闭右侧标签页'), findsNothing); // 执行后菜单收起
+    });
+
+    testWidgets('右键 tab："关闭其他标签页"生效；剩余单标签时批量项禁用', (tester) async {
+      final c = TabBarController(
+        initialTabs: const [
+          TabData(title: 'A'),
+          TabData(title: 'B'),
+          TabData(title: 'C'),
+        ],
+      );
+      await tester.pumpWidget(wrap(c));
+      await tester.pumpAndSettle();
+
+      // 右键中间 tab → 关闭其他：仅剩 B 且激活
+      await rightClick(tester, const Offset(8 + 185 + 90, 21));
+      await tester.tap(find.text('关闭其他标签页'));
+      await tester.pumpAndSettle();
+      expect(c.tabs.map((t) => t.title), ['B']);
+      expect(c.active(), 'tab-2');
+
+      // 单标签重开菜单：关闭左/其他/右侧全禁用（"关闭"仍可用——关掉会补新标签页）
+      await rightClick(tester, const Offset(8 + 90, 21));
+      await tester.tap(find.text('关闭其他标签页'));
+      await tester.pumpAndSettle();
+      expect(c.count, 1); // 禁用项点击无效
+      expect(find.text('关闭其他标签页'), findsOneWidget); // 菜单保持打开
+    });
+
+    testWidgets('右键首项："关闭左侧标签页"禁用（点击无效、菜单保持）', (tester) async {
+      final c = TabBarController(
+        initialTabs: const [
+          TabData(title: 'A'),
+          TabData(title: 'B'),
+          TabData(title: 'C'),
+        ],
+      );
+      await tester.pumpWidget(wrap(c));
+      await tester.pumpAndSettle();
+
+      await rightClick(tester, const Offset(8 + 90, 21)); // 首个 tab
+      await tester.tap(find.text('关闭左侧标签页'));
+      await tester.pumpAndSettle();
+
+      expect(c.count, 3);
+      expect(find.text('关闭左侧标签页'), findsOneWidget);
+    });
+
+    testWidgets('空白区域右键：仅"新建标签页"可用；点外部关闭菜单', (tester) async {
+      final c = TabBarController(
+        initialTabs: const [TabData(title: 'A'), TabData(title: 'B')],
+      );
+      await tester.pumpWidget(wrap(c, width: 800));
+      await tester.pumpAndSettle();
+
+      // 宽 800：2 tab 各 240（clamp 上限），tab 总宽 480；x=700 在标签条空白区
+      await rightClick(tester, const Offset(700, 21));
+      expect(find.text('新建标签页'), findsOneWidget);
+
+      // 空白右键：无目标 tab，关闭系列全禁用
+      await tester.tap(find.text('关闭'));
+      await tester.pumpAndSettle();
+      expect(c.count, 2);
+
+      // 新建可用
+      await tester.tap(find.text('新建标签页'));
+      await tester.pumpAndSettle();
+      expect(c.count, 3);
+
+      // 再弹一次，点菜单外部关闭
+      await rightClick(tester, const Offset(700, 21));
+      expect(find.text('新建标签页'), findsOneWidget);
+      await tester.tapAt(const Offset(400, 300));
+      await tester.pumpAndSettle();
+      expect(find.text('新建标签页'), findsNothing);
     });
   });
 }
