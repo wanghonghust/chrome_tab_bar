@@ -4,8 +4,6 @@
 
 A Chrome-style browser tab bar (pure UI library). **Contains only the tab strip itself — page content is up to you**: drive tab add/close/activate/update through `TabBarController`, and render whatever content you like for the active tab.
 
-A 1:1 Flutter port of the web version (`tab.css` + `tab.js`).
-
 ## Features
 
 - Chrome look: tab height 34 / strip height 38, top corner radius 8px, flexible equal-width tabs (72–240px)
@@ -51,7 +49,7 @@ The `example/` folder is a complete demo app (tab strip + custom omnibox toolbar
 
 ```
 cd example
-flutter run -d windows
+flutter run
 ```
 
 ## Tests
@@ -67,8 +65,6 @@ flutter test
 [English](#english) | **中文**
 
 Chrome 风格浏览器标签栏组件（纯 UI 库）。**只包含标签条本体，页面内容由使用方自定义**：通过 `TabBarController` 驱动标签增删改查，自行渲染激活标签对应的内容。
-
-与 `e:\Web\tab` 下的 web 版（`tab.css` + `tab.js`）一比一复刻。
 
 ## 特性
 
@@ -115,7 +111,7 @@ ChromeTabBar(controller: controller);
 
 ```
 cd example
-flutter run -d windows
+flutter run
 ```
 
 ## 测试
