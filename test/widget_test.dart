@@ -150,6 +150,209 @@ void main() {
       expect(c.tabs.first.title, 'A');
     });
 
+    testWidgets('最后 tab 与 + 按钮保持 5px 间隙（= 按钮底距；分割线不占位）', (tester) async {
+      // 回归：旧配账把视口宽直接当均分宽（未减左右留白），满宽时画布
+      // 画出约束压到 + 按钮。现按净宽均分，右隙恒 5px（= 按钮底距）；
+      // 分割线由 painter 画在间隙中央，不占布局空间。
+      // 400/4 tab：均分满宽；1200/2 tab：clamp 240 不满宽。
+      for (final (width, n) in [(400.0, 4), (1200.0, 2)]) {
+        final c = TabBarController(
+          initialTabs: [for (var i = 0; i < n; i++) TabData(title: 'T$i')],
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(width: width, child: BrowserTabBar(controller: c)),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        // tab 画布 = 高 34 且宽 > 100 的 CustomPaint；+ 按钮 = 28×28
+        Rect? canvas;
+        Rect? btn;
+        for (final f in find
+            .byWidgetPredicate((w) => w is CustomPaint && w.painter != null)
+            .evaluate()) {
+          final box = f.findRenderObject() as RenderBox;
+          final r = box.localToGlobal(Offset.zero) & box.size;
+          if (r.width > 100 && r.height > 30) canvas = r;
+          if (r.width == 28 && r.height == 28) btn = r;
+        }
+        expect(canvas, isNotNull);
+        expect(btn, isNotNull);
+
+        // 两种形态 + 按钮都紧跟画布右缘，间隙与按钮底距一致（5px）
+        expect(canvas!.right, lessThanOrEqualTo(btn!.left));
+        expect(btn.left - canvas.right, closeTo(5, 0.1));
+        expect(canvas.bottom - btn.bottom, closeTo(5, 0.1));
+      }
+    });
+
+    testWidgets('最后 tab 右缘贴边画分割线；激活最后 tab 时隐藏', (tester) async {
+      // 分割线由 _TabStripPainter 画在最后 tab 右缘（与 tab 间分割线
+      // 同款 1×18 / top 8 / line 色，贴边界），不占布局——用像素采样验证。
+      // 宽 600 双 tab：tabW clamp 240 不满宽，画布全局 x∈[8,488]，
+      // 分割线 x = 488（画布右缘），采样 y = 顶距 4 + 10 = 14。
+      // toImage/toByteData 依赖真实异步，须包 tester.runAsync。
+      Future<int> px(String? activateId) async {
+        final key = GlobalKey();
+        final c = TabBarController(
+          initialTabs: const [TabData(title: 'A'), TabData(title: 'B')],
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: RepaintBoundary(
+                key: key,
+                child: SizedBox(
+                  width: 600,
+                  child: BrowserTabBar(controller: c),
+                ),
+              ),
+            ),
+          ),
+        );
+        if (activateId != null) c.activate(activateId);
+        await tester.pumpAndSettle();
+        final boundary =
+            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        var bytes = Uint8List(0);
+        await tester.runAsync(() async {
+          final image = await boundary.toImage(pixelRatio: 1);
+          bytes = (await image.toByteData())!.buffer.asUint8List();
+        });
+        return bytes[(14 * boundary.size.width.toInt() + 488) * 4];
+      }
+
+      // 默认激活 A：分割线存在（line 半透明叠 stripBg 变暗）
+      final withDivider = await px(null);
+      expect(withDivider, lessThan(205));
+      // 激活 B（最后一个）：右耳角外扩至间隙，分割线隐藏 → 无墨
+      final without = await px('tab-2');
+      expect(without, greaterThan(withDivider + 10));
+    });
+
+    testWidgets('溢出时首 tab 左缘贴边画分割线（与右缘对称）', (tester) async {
+      // 布局：下拉按钮 footprint 37（左距 4 + 28 按钮 + 右距 5），溢出时
+      // tab 区左留白 0 → 画布左缘（= 首 tab 左缘分割线）全局 x = 37
+      //（按钮与首 tab 间隔恰 5px，与右侧对称）；采样 y = 4+8+4 = 14。
+      // 激活末 tab → 窗口跳到尾部，首可见 tab 非激活
+      Future<int> px(int n, String activateId, int x) async {
+        final key = GlobalKey();
+        final c = TabBarController(
+          initialTabs: [for (var i = 1; i <= n; i++) TabData(title: 'T$i')],
+        );
+        if (activateId != 'tab-1') c.activate(activateId);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: RepaintBoundary(
+                key: key,
+                child: SizedBox(width: 300, child: BrowserTabBar(controller: c)),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final boundary =
+            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        var bytes = Uint8List(0);
+        await tester.runAsync(() async {
+          final image = await boundary.toImage(pixelRatio: 1);
+          bytes = (await image.toByteData())!.buffer.asUint8List();
+        });
+        return bytes[(14 * boundary.size.width.toInt() + x) * 4];
+      }
+
+      // 8 tab 溢出：下拉按钮出现，首可见 tab 非激活 → 左缘分割线存在（变暗）
+      final withDivider = await px(8, 'tab-8', 37);
+      expect(withDivider, lessThan(205));
+      // 2 tab 非溢出：无下拉按钮、无左缘线；x=36 在首 tab 内 favicon(≤34)
+      // 与标题(≥42) 之间的空隙，无墨（亮）
+      final without = await px(2, 'tab-1', 36);
+      expect(without, greaterThan(withDivider + 10));
+    });
+
+    testWidgets('tooltip / 新标签文本 / 图标自定义', (tester) async {
+      final c = TabBarController(initialTabs: const [TabData(title: 'A')]);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              child: BrowserTabBar(
+                controller: c,
+                newTabLabel: '新建',
+                newTabTooltip: '点我新建 (Ctrl+T)',
+                newTabIcon: const Icon(Icons.add_circle_outline, size: 16),
+                overflowButtonTooltip: '展开更多',
+                closeButtonTooltip: '关掉它',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 默认 tooltip 存在且可自定义：+ 按钮与溢出按钮各自一条
+      expect(find.byTooltip('点我新建 (Ctrl+T)'), findsOneWidget);
+      expect(find.byTooltip('新建标签页'), findsNothing); // 默认值被覆盖
+
+      // 自定义图标渲染（不再画默认十字 painter）
+      expect(find.byIcon(Icons.add_circle_outline), findsOneWidget);
+
+      // + 按钮新增的标签使用自定义文本
+      await tester.tap(find.byIcon(Icons.add_circle_outline));
+      await tester.pumpAndSettle();
+      expect(c.count, 2);
+      expect(c.tabs.last.title, '新建');
+      expect(c.active(), c.tabs.last.id);
+
+      // 关闭钮 tooltip 自定义：悬停关闭钮显示覆盖文本而非默认"关闭"
+      //（净宽 = 400-4-28-13 = 355 → 两 tab 各 177.5；首 tab 关闭钮
+      // 中心 x = 8 + 177.5 - 8 - 16/2 = 169.5）
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: const Offset(169.5, 21));
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(const Offset(169.5, 21));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('关掉它'), findsOneWidget);
+      expect(find.byTooltip('关闭'), findsNothing);
+    });
+
+    testWidgets('悬停关闭钮显示 tooltip，移出消失', (tester) async {
+      // 关闭钮是画布绘制：悬停时在其位置覆盖忽略命中的透明占位挂
+      // Tooltip（TriggerMode.none），由 controller 手动显隐
+      final c = TabBarController(initialTabs: const [TabData(title: 'A')]);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(width: 400, child: BrowserTabBar(controller: c)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 未悬停：无占位 / 无气泡
+      expect(find.byTooltip('关闭'), findsNothing);
+
+      // 悬停关闭钮：400 宽单 tab → 净宽 349 clamp 240（不满宽），
+      // 关闭钮中心 = 左耳角 8 + (240-8-16) + 8 = 232，y = 4 + 17 = 21
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: const Offset(232, 21));
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(const Offset(232, 21));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('关闭'), findsOneWidget);
+
+      // 移出 tab 区：气泡消失
+      await gesture.moveTo(const Offset(-100, -100));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('关闭'), findsNothing);
+    });
+
     testWidgets('主题切换后标题颜色随主题更新（文本缓存键含主题）', (tester) async {
       final key = GlobalKey();
       var dark = false;
@@ -292,8 +495,9 @@ void main() {
   });
 
   group('溢出下拉（标签放不下时左侧按钮展开剩余标签）', () {
-    // 宽 300：内容宽 = 300-4(右留白)-40(+) = 256；溢出时再减下拉按钮 36 → 220，
-    // 可见容量 220~/72 = 3；8 个标签 → 溢出，隐藏 5 个
+    // 宽 300：视口 = 300-4(右留白)-28(+) = 268，净宽 = 268-13 = 255；
+    // 溢出时再减下拉按钮 37、左留白归零 → 净宽 231-5 = 226，
+    // 可见容量 226~/72 = 3；8 个标签 → 溢出，隐藏 5 个
     Widget wrap(TabBarController c) => MaterialApp(
           home: Scaffold(
             body: SizedBox(width: 300, child: BrowserTabBar(controller: c)),
@@ -307,10 +511,10 @@ void main() {
       await tester.pumpWidget(wrap(c));
       await tester.pumpAndSettle();
 
-      // 8×72=576 > 256(无按钮内容宽) → 溢出
+      // 8×72=576 > 255(无按钮净宽) → 溢出
       expect(find.byKey(BrowserTabBar.overflowButtonKey), findsOneWidget);
 
-      // 关到 3 个：3×72=216 ≤ 256 → 放得下，按钮消失
+      // 关到 3 个：3×72=216 ≤ 255 → 放得下，按钮消失
       c.close('tab-8');
       await tester.pumpAndSettle();
       c.close('tab-7');
@@ -319,7 +523,7 @@ void main() {
       await tester.pumpAndSettle();
       c.close('tab-5');
       await tester.pumpAndSettle();
-      expect(c.count, 4); // 4×72=288 > 256 仍溢出 → 按钮保留
+      expect(c.count, 4); // 4×72=288 > 233 仍溢出 → 按钮保留
       expect(find.byKey(BrowserTabBar.overflowButtonKey), findsOneWidget);
 
       c.close('tab-4');

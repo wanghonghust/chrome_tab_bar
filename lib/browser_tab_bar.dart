@@ -175,9 +175,13 @@ bool _isLightColor(Color c) =>
 // ============================================================
 
 class TabBarController extends ChangeNotifier {
-  /// [initialTabs] 初始化标签（静默：补 id / 默认色，首个自动激活，不触发事件）
-  TabBarController({List<TabData> initialTabs = const [], this.onChange})
-      : _tabs = <TabData>[] {
+  /// [initialTabs] 初始化标签（静默：补 id / 默认色，首个自动激活，不触发事件）；
+  /// [newTabLabel] 关闭最后一个标签时自动补充的新标签标题
+  TabBarController({
+    List<TabData> initialTabs = const [],
+    this.onChange,
+    this.newTabLabel = '新标签页',
+  })  : _tabs = <TabData>[] {
     for (final t in initialTabs) {
       _tabs.add(_resolve(t));
     }
@@ -186,6 +190,9 @@ class TabBarController extends ChangeNotifier {
 
   /// 对应 web 版 onChange 回调（e.type: add|activate|close|update）
   ValueChanged<TabBarChangeEvent>? onChange;
+
+  /// 自动补充新标签（关闭最后一个 / + 按钮 / 右键"新建"）的默认标题
+  final String newTabLabel;
 
   final List<TabData> _tabs;
   String? _activeId;
@@ -239,7 +246,7 @@ class TabBarController extends ChangeNotifier {
 
     String? nextId;
     if (_tabs.isEmpty) {
-      nextId = add(const TabData(title: '新标签页'));
+      nextId = add(TabData(title: newTabLabel));
     } else if (wasActive) {
       final next = _tabs[math.min(idx, _tabs.length - 1)];
       activate(next.id!);
@@ -324,6 +331,11 @@ class BrowserTabBar extends StatefulWidget {
     this.style,
     this.onChange,
     this.label = '浏览器标签页',
+    this.newTabLabel,
+    this.newTabTooltip = '新建标签页',
+    this.newTabIcon,
+    this.overflowButtonTooltip = '更多标签页',
+    this.closeButtonTooltip = '关闭',
   });
 
   /// 溢出下拉按钮的 Key（测试 / 使用方定位用）。
@@ -339,6 +351,21 @@ class BrowserTabBar extends StatefulWidget {
   final ValueChanged<TabBarChangeEvent>? onChange;
 
   final String label;
+
+  /// + 按钮 / 右键"新建"新增标签的标题；缺省用 controller.newTabLabel
+  final String? newTabLabel;
+
+  /// + 按钮的 tooltip；null 关闭
+  final String? newTabTooltip;
+
+  /// 自定义 + 按钮图标（28×28 内的任意 Widget）；缺省画默认十字
+  final Widget? newTabIcon;
+
+  /// 溢出下拉按钮的 tooltip；null 关闭
+  final String? overflowButtonTooltip;
+
+  /// tab 关闭按钮的 tooltip；null 关闭
+  final String? closeButtonTooltip;
 
   @override
   State<BrowserTabBar> createState() => _BrowserTabBarState();
@@ -486,7 +513,8 @@ class _BrowserTabBarState extends State<BrowserTabBar> {
           onTapOutside: (_) => _hideContextMenu(),
           child: _TabContextMenu(
             style: style,
-            onNewTab: () => run(() => c.add(const TabData(title: '新标签页'))),
+            onNewTab: () => run(
+                () => c.add(TabData(title: widget.newTabLabel ?? c.newTabLabel))),
             onClose: id == null
                 ? null
                 : () => run(() => c.close(id)),
@@ -524,33 +552,48 @@ class _BrowserTabBarState extends State<BrowserTabBar> {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                 // ---- 宽度配账（必须与 Row 实际占位一致，否则内容画出界压到 + 按钮）----
-                // 总宽 = 右留白 4 + 新建按钮 40 + (溢出时下拉按钮 36) + tab 内容区
-                // 本 LayoutBuilder 在 Container 之外，maxWidth = 整条宽；
-                // 减右留白 4 后与原先内层 LayoutBuilder 看到的宽度一致
+                // 总宽 = 右留白 4 + 新建按钮 28 + (溢出时下拉按钮 28) + tab 视口
+                // tab 视口再减左右留白（左 8 耳角 + 右 5 按钮隙）才是画布净宽
+                // （tabWidth 按净宽均分）——最后 tab 右缘距 + 按钮 5px（=
+                // 按钮底距）；tab 间同款分割线贴最后 tab 右缘画（painter），不占位
                 final total = constraints.maxWidth - 4;
                 final count = c.count;
-                final base = total - _NewTabButton.footprint; // 无溢出内容宽
-                final withBtn = base - _OverflowButton.footprint; // 溢出内容宽
+                final base = total - _NewTabButton.footprint; // 无溢出视口宽
+                final withBtn = base - _OverflowButton.footprint; // 溢出视口宽
+                const ear = TabBarStyle.radius + _NewTabButton.gapToTab;
                 // 溢出判定：按最小宽 72 都放不下才算溢出（此时插入下拉按钮）
                 final over =
-                    count > 0 && count * TabBarStyle.minTabWidth > base;
-                // Padding(16) 之后的内容宽 = Expanded 宽 - 耳角留白，tabWidth 按它均分
-                final contentW = over ? withBtn : base;
+                    count > 0 && count * TabBarStyle.minTabWidth > base - ear;
+                final viewportW = over ? withBtn : base;
+                // 左留白：非溢出 8（首 tab 激活耳角外扩空间）；溢出 0——
+                // 按钮右距 5 即是与首 tab 的间隔（与右侧"tab 右缘 5px +
+                // + 按钮"完全对称）
+                final leftPad = over ? 0.0 : TabBarStyle.radius;
+                final innerW =
+                    viewportW - leftPad - _NewTabButton.gapToTab; // 画布净宽
                 if (!over) _windowStart = 0;
                 final layout = over
-                    ? _overflowLayout(contentW, count)
+                    ? _overflowLayout(innerW, count)
                     : _OverflowLayout(
-                        tabWidth: _tabWidth(contentW, count),
+                        tabWidth: _tabWidth(innerW, count),
                         visibleCount: count,
                         visibleStart: 0,
                       );
                 _layout = layout;
 
+                // tab 区域实际占宽：左右留白 + 可见 tab 总宽，满宽时按
+                // 视口封顶。tab 少时区域不满宽，+ 按钮紧跟最后一个 tab
+                // （Chrome 行为）；溢出/满宽时占满，+ 按钮仍在最右
+                final tabsW = math.min(
+                    viewportW,
+                    leftPad +
+                        _NewTabButton.gapToTab +
+                        layout.visibleCount * layout.tabWidth);
+
                 // 底部分隔线画在 tab 画布内、所有 tab 之下（Chrome 同款层叠），
                 // 需要整条宽度与画布在条内的 x 原点，让线延伸到条两端
                 final tabsOriginX =
-                    (over ? _OverflowButton.footprint : 0.0) +
-                        TabBarStyle.radius;
+                    (over ? _OverflowButton.footprint : 0.0) + leftPad;
 
                 return Container(
             // .tabbar：高 38（顶 4 + tab 34），右侧留 4
@@ -568,16 +611,23 @@ class _BrowserTabBarState extends State<BrowserTabBar> {
                         key: BrowserTabBar.overflowButtonKey,
                         controller: c,
                         style: style,
+                        tooltip: widget.overflowButtonTooltip,
                         hiddenTabs: [
                           for (var i = 0; i < count; i++)
                             if (!layout.isVisible(i)) c.tabs[i],
                         ],
                       ),
-                    Expanded(
+                    SizedBox(
+                      width: tabsW,
                       child: Padding(
-                        // 左右留白给首尾耳角（对应 .tabbar-scroll padding: 0 8px）
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: TabBarStyle.radius,
+                        // 左留白 leftPad：非溢出 8（首 tab 耳角外扩），
+                        // 溢出 0（按钮右距 5 已是与首 tab 的间隔）；
+                        // 右留白 5 = 与 + 按钮的间距（与按钮底距一致）。
+                        // 首/末 tab 激活时耳角向画布外扩 8px——画布不裁剪，
+                        // 但按钮底距 5、耳角最宽处贴条底，不会遮挡按钮
+                        padding: EdgeInsets.only(
+                          left: leftPad,
+                          right: _NewTabButton.gapToTab,
                         ),
                         child: _TabsArea(
                           controller: c,
@@ -587,6 +637,7 @@ class _BrowserTabBarState extends State<BrowserTabBar> {
                           visibleCount: layout.visibleCount,
                           stripWidth: constraints.maxWidth,
                           tabsOriginX: tabsOriginX,
+                          closeTooltip: widget.closeButtonTooltip,
                           onEnsureVisible: _ensureVisibleWindow,
                           onContextMenu: _openContextMenu,
                           contextMenuTapGroup: _ctxTapGroup,
@@ -595,7 +646,19 @@ class _BrowserTabBarState extends State<BrowserTabBar> {
                     ),
                     _NewTabButton(
                       style: style,
-                      onTap: () => c.add(const TabData(title: '新标签页')),
+                      tooltip: widget.newTabTooltip,
+                      icon: widget.newTabIcon,
+                      onTap: () =>
+                          c.add(TabData(title: widget.newTabLabel ?? c.newTabLabel)),
+                    ),
+                    // 吸收 + 按钮右侧的剩余空间；空白区域右键同样弹
+                    // "仅新建可用"菜单（原先由占满整条的热区承担）
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onSecondaryTapDown: (d) =>
+                            _openContextMenu(null, d.globalPosition),
+                      ),
                     ),
                   ],
                 ),
@@ -622,6 +685,7 @@ class _TabsArea extends StatefulWidget {
     required this.visibleCount,
     required this.stripWidth,
     required this.tabsOriginX,
+    this.closeTooltip,
     this.onEnsureVisible,
     this.onContextMenu,
     this.contextMenuTapGroup,
@@ -641,7 +705,7 @@ class _TabsArea extends StatefulWidget {
   /// painter 向画布外绘制，CustomPaint 不裁剪）
   final double stripWidth;
 
-  /// 画布在条内的 x 原点（(溢出按钮 36) + 耳角留白 8），分隔线坐标换算用
+  /// 画布在条内的 x 原点（(溢出按钮 28) + 耳角留白 8），分隔线坐标换算用
   final double tabsOriginX;
 
   /// 键盘焦点移出窗口时通知父级平移窗口
@@ -649,6 +713,9 @@ class _TabsArea extends StatefulWidget {
 
   /// 右键（tab 或空白区域）回调：tabIndex 为 null = 空白区域；参数为全局坐标
   final void Function(int? tabIndex, Offset globalPosition)? onContextMenu;
+
+  /// tab 关闭按钮的 tooltip；null 关闭
+  final String? closeTooltip;
 
   /// 与右键菜单同组的 TapRegion id（右键 tab 不触发菜单 onTapOutside）
   final Object? contextMenuTapGroup;
@@ -663,6 +730,13 @@ class _TabsAreaState extends State<_TabsArea> with TickerProviderStateMixin {
   int? _hoverCloseIndex; // 悬停关闭按钮
   int _focusIndex = 0; // 键盘焦点 tab（roving）
   bool _stripFocused = false; // 焦点环仅在有焦点时显示（对应 :focus-visible）
+
+  // ---- 关闭钮 tooltip（Chrome 同款"关闭标签页"提示）----
+  // 关闭钮是画布绘制、无独立 widget 可包 Tooltip：悬停时在其位置覆盖
+  // 一个忽略命中的透明占位并挂 Tooltip，经 state 手动触发显示
+  //（占位若参与命中会抢占 hover 事件，与 MouseRegion 形成抖动循环；
+  // 本 SDK 的 Tooltip 无 controller，故用 GlobalKey 取 state）
+  final GlobalKey<TooltipState> _closeTipKey = GlobalKey<TooltipState>();
 
   // ---- 动效渐变量（悬停底色 / 关闭钮透明度）----
   final Map<int, double> _hoverAmt = {};
@@ -724,7 +798,18 @@ class _TabsAreaState extends State<_TabsArea> with TickerProviderStateMixin {
       }
       if (n > 0) _focusIndex = _focusIndex.clamp(0, n - 1);
     });
+    _syncCloseTooltip();
     _startAnim();
+  }
+
+  /// 悬停关闭钮时触发气泡显示（占位可能本帧才插入，post-frame 等
+  /// mount 后再驱动）。隐藏无需处理：hover 离开后占位随 build 移除，
+  /// 气泡 overlay 随 TooltipState dispose 自动撤下
+  void _syncCloseTooltip() {
+    if (_hoverCloseIndex == null || widget.closeTooltip == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _closeTipKey.currentState?.ensureTooltipVisible();
+    });
   }
 
   // ---- 动效驱动：指数 ease-out，~150ms 收敛 ----
@@ -794,6 +879,7 @@ class _TabsAreaState extends State<_TabsArea> with TickerProviderStateMixin {
         _hoverIndex = i;
         _hoverCloseIndex = closeIdx;
       });
+      _syncCloseTooltip();
       _startAnim();
     }
   }
@@ -803,7 +889,7 @@ class _TabsAreaState extends State<_TabsArea> with TickerProviderStateMixin {
     final c = widget.controller;
     final tabW = widget.tabWidth;
 
-    return Focus(
+    Widget area = Focus(
       focusNode: _focusNode,
       onKeyEvent: _onKey,
       child: MouseRegion(
@@ -877,6 +963,35 @@ class _TabsAreaState extends State<_TabsArea> with TickerProviderStateMixin {
         ),
       ),
     );
+
+    // 悬停关闭钮时在其位置覆盖忽略命中的透明占位 + Tooltip（Chrome 同款
+    // "关闭标签页"提示）。位置公式与 _inClose 命中区一致；占位收不到
+    // hover（IgnorePointer 穿透给画布 MouseRegion），显示经
+    // _syncCloseTooltip 手动触发，隐藏靠占位移除
+    final hoverClose = _hoverCloseIndex;
+    return Stack(
+      children: [
+        area,
+        if (hoverClose != null && widget.closeTooltip != null)
+          Positioned(
+            left: (hoverClose - widget.visibleStart) * tabW +
+                tabW -
+                8 -
+                TabBarStyle.closeSize,
+            top: (TabBarStyle.tabHeight - TabBarStyle.closeSize) / 2,
+            width: TabBarStyle.closeSize,
+            height: TabBarStyle.closeSize,
+            child: IgnorePointer(
+              child: Tooltip(
+                key: _closeTipKey,
+                message: widget.closeTooltip!,
+                excludeFromSemantics: true,
+                child: const SizedBox.expand(),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   // ---- 键盘：roving focus + ←/→ 环绕移动 + Enter/Space 激活 ----
@@ -922,17 +1037,33 @@ class _TabsAreaState extends State<_TabsArea> with TickerProviderStateMixin {
 }
 
 // ============================================================
-// 新建按钮（.tabbar-new：28×28 圆角正方形，左距 12，底距 3）
+// 新建按钮（.tabbar-new：28×28 圆角正方形，底距 5；左侧的分割线由
+// _TabStripPainter 画在 tab 与按钮的间隙中央，不占布局空间）
 // ============================================================
 
 class _NewTabButton extends StatefulWidget {
-  const _NewTabButton({required this.style, required this.onTap});
+  const _NewTabButton({
+    required this.style,
+    required this.onTap,
+    this.tooltip,
+    this.icon,
+  });
 
-  /// 在标签条内占据的水平空间（左距 12 + 宽 28），供宽度配账使用
-  static const double footprint = 40;
+  /// 在标签条内占据的水平空间（宽 28，无左距），供宽度配账使用
+  static const double footprint = 28;
+
+  /// 与最后 tab 的水平间距（= 按钮底距，tab 区右 Padding 同值）；
+  /// 分割线画在这 5px 间隙中央（painter 绘制），不占布局
+  static const double gapToTab = 5;
 
   final TabBarStyle style;
   final VoidCallback onTap;
+
+  /// 悬停提示；null 不显示
+  final String? tooltip;
+
+  /// 自定义图标（缺省画 + 十字）
+  final Widget? icon;
 
   @override
   State<_NewTabButton> createState() => _NewTabButtonState();
@@ -943,30 +1074,67 @@ class _NewTabButtonState extends State<_NewTabButton> {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
+    final button = MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         onTap: widget.onTap,
         child: Padding(
-          // 对应 CSS .tabbar-new { margin: 0 0 3px 12px }
-          padding: const EdgeInsets.only(left: 12, bottom: 3),
+          // 底距 5（对应 CSS margin-bottom），无左距：紧贴 tab 区右缘
+          padding: const EdgeInsets.only(bottom: _NewTabButton.gapToTab),
           child: SizedBox(
             width: 28,
             height: 28,
             child: CustomPaint(
-              painter: _NewTabPainter(style: widget.style, hovered: _hover),
+              // 悬停底（radius 6）；图标画在其上——自定义 icon 作 child
+              // 同样盖在悬停底之上
+              painter: _NewTabHoverPainter(style: widget.style, hovered: _hover),
+              child: widget.icon ??
+                  CustomPaint(
+                    painter: _NewTabIconPainter(
+                      style: widget.style,
+                      hovered: _hover,
+                    ),
+                  ),
             ),
           ),
         ),
       ),
     );
+    return widget.tooltip == null
+        ? button
+        : Tooltip(message: widget.tooltip!, child: button);
   }
 }
 
-class _NewTabPainter extends CustomPainter {
-  const _NewTabPainter({required this.style, required this.hovered});
+/// + 按钮悬停底：圆角正方形（radius 6）
+class _NewTabHoverPainter extends CustomPainter {
+  const _NewTabHoverPainter({required this.style, required this.hovered});
+
+  final TabBarStyle style;
+  final bool hovered;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (!hovered) return;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Offset.zero & size,
+        const Radius.circular(6),
+      ),
+      Paint()..color = style.btnHover,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_NewTabHoverPainter old) =>
+      old.hovered != hovered || old.style != style;
+}
+
+/// + 按钮默认图标：12×12 十字，线宽 1.4，圆头
+class _NewTabIconPainter extends CustomPainter {
+  const _NewTabIconPainter({required this.style, required this.hovered});
 
   final TabBarStyle style;
   final bool hovered;
@@ -974,17 +1142,6 @@ class _NewTabPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final c = Offset(size.width / 2, size.height / 2);
-    if (hovered) {
-      // 圆角正方形悬停底（radius 6）
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Offset.zero & size,
-          const Radius.circular(6),
-        ),
-        Paint()..color = style.btnHover,
-      );
-    }
-    // + 图标：12×12 十字，线宽 1.4，圆头
     final p = Paint()
       ..color = hovered ? style.fg : style.fgMuted
       ..strokeWidth = 1.4
@@ -995,7 +1152,7 @@ class _NewTabPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_NewTabPainter old) =>
+  bool shouldRepaint(_NewTabIconPainter old) =>
       old.hovered != hovered || old.style != style;
 }
 
@@ -1010,14 +1167,18 @@ class _OverflowButton extends StatefulWidget {
     required this.controller,
     required this.style,
     required this.hiddenTabs,
+    this.tooltip,
   });
 
   final TabBarController controller;
   final TabBarStyle style;
   final List<TabData> hiddenTabs;
 
-  /// 溢出按钮在标签条内占据的水平空间（左距 8 + 宽 28）
-  static const double footprint = 36;
+  /// 悬停提示；null 不显示
+  final String? tooltip;
+
+  /// 溢出按钮在标签条内占据的水平空间（左距 4 + 宽 28 + 右距 5）
+  static const double footprint = 37;
 
   @override
   State<_OverflowButton> createState() => _OverflowButtonState();
@@ -1049,7 +1210,7 @@ class _OverflowButtonState extends State<_OverflowButton> {
 
   Widget _buildOverlay(BuildContext context) {
     return Positioned(
-      width: 264,
+      width: 220,
       child: CompositedTransformFollower(
         link: _layerLink,
         targetAnchor: Alignment.bottomLeft,
@@ -1075,9 +1236,14 @@ class _OverflowButtonState extends State<_OverflowButton> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      // 与新建按钮同底边基线：left 8 + 28 宽（圆角正方形，同 + 按钮）
-      padding: const EdgeInsets.only(left: 8, bottom: 3),
+    final button = Padding(
+      // 与新建按钮同规格（28×28、底距 5）；左距 4 距条左缘（对齐非溢出
+      // 时首 tab 的左留白观感），右侧 5px 与首 tab 左缘（及其分割线）间隔
+      padding: const EdgeInsets.only(
+        left: 4,
+        right: _NewTabButton.gapToTab,
+        bottom: _NewTabButton.gapToTab,
+      ),
       child: CompositedTransformTarget(
         link: _layerLink,
         child: OverlayPortal(
@@ -1111,6 +1277,9 @@ class _OverflowButtonState extends State<_OverflowButton> {
         ),
       ),
     );
+    return widget.tooltip == null
+        ? button
+        : Tooltip(message: widget.tooltip!, child: button);
   }
 }
 
@@ -1654,6 +1823,28 @@ class _TabStripPainter extends CustomPainter {
       canvas.translate((i - visibleStart) * tabWidth, 0);
       _paintTab(canvas, i, tabs[i]);
       canvas.restore();
+    }
+
+    // ---- 1) 首尾 tab 与两侧按钮之间的分割线（与 tab 间分割线同款 1×18）----
+    // 与 tab 间分割线一样贴边界画，不占布局空间：
+    // - 右缘：贴最后 tab 右缘（= 画布右缘 size.width），距 + 按钮 5px
+    // - 左缘：贴首 tab 左缘（= 画布左缘 0），仅溢出（存在隐藏 tab）时
+    //   画，距下拉按钮 5px
+    // 首尾 tab 激活时各自隐藏——耳角向按钮侧外扩会与线相叠（与 tab 间
+    // 分割线遇激活 tab 断开的规则一致）
+    final activeId = controller.active();
+    final last = end - 1;
+    if (last >= visibleStart && tabs[last].id != activeId) {
+      canvas.drawRect(
+        Rect.fromLTWH(size.width, 8, 1, 18),
+        Paint()..color = style.line,
+      );
+    }
+    if (tabs.length > visibleCount && tabs[visibleStart].id != activeId) {
+      canvas.drawRect(
+        const Rect.fromLTWH(0, 8, 1, 18),
+        Paint()..color = style.line,
+      );
     }
   }
 

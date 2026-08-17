@@ -143,7 +143,54 @@ class _DemoPageState extends State<DemoPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // ---- 标签条（组件本体）----
-                      BrowserTabBar(controller: _controller),
+                      // 演示自定义 activeBorder 颜色（默认主题里它是分隔线同色灰）：
+                      // 浅色 Chrome 蓝 / 深色浅蓝，激活 tab 描边与底部分隔线都会用它。
+                      // TabBarStyle 暂无 copyWith，需手构完整样式；省略 activeBorder
+                      // 参数（null）则关闭描边与分隔线。
+                      //
+                      // 新标签自定义（均可省略）：
+                      // - newTabLabel：+ 按钮 / 右键"新建" / 关闭最后一个标签自动补位
+                      //   使用的标题（不传则用 controller.newTabLabel，默认"新标签页"）
+                      // - newTabTooltip / overflowButtonTooltip / closeButtonTooltip：
+                      //   + 按钮 / 溢出下拉 / tab 关闭钮的悬停提示，传 null 关闭
+                      // - newTabIcon：替换 + 按钮默认手绘十字（28×28 内的任意 Widget）
+                      BrowserTabBar(
+                        controller: _controller,
+                        newTabLabel: '新标签页',
+                        newTabTooltip: '新建标签页 (Ctrl+T)',
+                        overflowButtonTooltip: '更多标签页',
+                        closeButtonTooltip: '关闭标签页',
+                        newTabIcon: const Icon(Icons.add, size: 16),
+                        style: TabBarStyle(
+                          stripBg: isDark
+                              ? const Color(0xFF202124)
+                              : const Color(0xFFDEE1E6),
+                          pageBg: isDark
+                              ? const Color(0xFF35363A)
+                              : Colors.white,
+                          fg: isDark
+                              ? const Color(0xFFE8EAED)
+                              : const Color(0xFF202124),
+                          fgMuted: isDark
+                              ? const Color(0xFF9AA0A6)
+                              : const Color(0xFF5F6368),
+                          line: isDark
+                              ? const Color(0x29E8EAED)
+                              : const Color(0x29202124),
+                          hoverOverlay: isDark
+                              ? const Color(0x14FFFFFF)
+                              : const Color(0x73FFFFFF),
+                          btnHover: isDark
+                              ? const Color(0x24E8EAED)
+                              : const Color(0x17202124),
+                          focus: isDark
+                              ? const Color(0xFF8AB4F8)
+                              : const Color(0xFF1A73E8),
+                          activeBorder: isDark
+                              ? const Color(0xFF8AB4F8)
+                              : const Color(0xFF1A73E8),
+                        ),
+                      ),
 
                       // ---- 工具栏：与激活 tab 同色连通 ----
                       // 紧贴标签条下方即可（不再 -1px 上叠）：默认 activeBorder
@@ -290,7 +337,7 @@ class _DemoPageState extends State<DemoPage> {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              '交互：单击切换 · 中键或 × 关闭 · Tab 聚焦后 ←/→ 移动、Enter 激活 · 标签过多时左侧下拉按钮展开剩余标签',
+                              '交互：单击切换 · 中键或 × 关闭 · 右键弹出菜单 · 悬停 + / 下拉 / 关闭钮显示 tooltip · Tab 聚焦后 ←/→ 移动、Enter 激活 · 标签过多时左侧下拉按钮展开剩余标签',
                               style: TextStyle(fontSize: 12, color: fgMuted),
                             ),
                           ],
